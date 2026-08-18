@@ -1,9 +1,9 @@
-# HSDS — Plan of Record
+# keel — Plan of Record
 
 **A native-capability and interop floor for Haskell data science.**
 
 **Product name: `keel`** (decided 2026-08-17) — packages `keel-dyn` / `keel-abi` /
-`keel-onnx` / `keel-linalg` + umbrella `keel`; repo codename remains HSDS.
+`keel-onnx` / `keel-linalg` + umbrella `keel`; repo codename HSDS retired when the repo folder was renamed to keel on 2026-08-18.
 
 Research completed and all load-bearing facts verified against primary sources on
 2026-08-17 (13-agent research/design/adversarial-critique workflow; three key facts
@@ -26,10 +26,10 @@ terminal), a lazy query engine with spill-to-disk (`dataframe-lazy`), and a pure
 Haskell Parquet reader — with releases shipping weekly
 (https://hackage.haskell.org/package/dataframe, https://hackage.haskell.org/package/dataframe-learn).
 
-**Therefore HSDS is explicitly NOT a new dataframe, not a new sklearn, and not a new
+**Therefore keel is explicitly NOT a new dataframe, not a new sklearn, and not a new
 plotting library.** Competing with a live incumbent in a ~110-person community is the
 ecosystem's documented death pattern (javelin: competent Series library, now ~19
-downloads/month). Instead, HSDS occupies the two layers that are verified-empty:
+downloads/month). Instead, keel occupies the two layers that are verified-empty:
 
 1. **The layer below** — native capability Haskell does not have at all:
    - **Runtime dynamic loading** of native libraries (no build-time C dependency, ever)
@@ -150,7 +150,7 @@ blocking on dependent types), `analyze` (2017), `harrow`/`hs-arrow` (1 and 6 com
 
 **One sentence (must open the README): "keel is not a new dataframe."**
 
-HSDS adds capability Haskell does not have — on Windows, under permissive licenses,
+keel adds capability Haskell does not have — on Windows, under permissive licenses,
 with zero build-time native dependencies — and never competes with it; upstream
 engagement is limited to bug reports (fixes = separate DataFrame-repo work,
 owner decision 2026-08-18). The tabular/expression vocabulary is the incumbent's
@@ -235,7 +235,7 @@ Haskell lacks entirely. Two mandatory soundness corrections are baked into §4.
 
 ### Data model (stated once)
 
-HSDS's own vocabulary is exactly two things:
+keel's own vocabulary is exactly two things:
 (a) a `Data.Vector.Storable` buffer + shape/strides metadata (for BLAS, ONNX, DLPack);
 (b) two frozen C ABI structs (Arrow C Data/Stream Interface; DLPack).
 The seam between (a) and the incumbent's `Column` is an **explicit, documented copy**
@@ -422,7 +422,7 @@ R interop, or a curated library inventory.
 |---|---|---|
 | Q1 | P0-gate failure contingency (decided BEFORE P0 runs) | **Narrow to the incumbent-independent packages** (dyn-loader, Arrow/DLPack ABI, ONNX) — they carry no dataframe dependency and remain fully valuable; drop the upstream-dependent halves of Tier B |
 | Q2 | Relationship to DataHaskell | **Long-term independent repo.** Interaction with upstream is exclusively finished, tested PRs; no org membership sought |
-| Q3 | Package naming | **DECIDED 2026-08-17: product name = `keel`** — unified prefix `keel-dyn` / `keel-abi` / `keel-onnx` / `keel-linalg` + umbrella `keel`; repo codename stays HSDS. Hackage `keel` verified free (HTTP 404, 2026-08-17; nearest neighbour `keelung` is an unrelated zk-SNARK DSL); only cross-ecosystem collision is the unrelated k8s tool keel.sh (2,720★). Chosen for the "laying the keel" metaphor: laid first, defines the ship, never becomes the ship — the name itself encodes the fixed-scope rule |
+| Q3 | Package naming | **DECIDED 2026-08-17: product name = `keel`** — unified prefix `keel-dyn` / `keel-abi` / `keel-onnx` / `keel-linalg` + umbrella `keel`; repo codename stays HSDS (superseded 2026-08-18: repo folder renamed to keel). Hackage `keel` verified free (HTTP 404, 2026-08-17; nearest neighbour `keelung` is an unrelated zk-SNARK DSL); only cross-ecosystem collision is the unrelated k8s tool keel.sh (2,720★). Chosen for the "laying the keel" metaphor: laid first, defines the ship, never becomes the ship — the name itself encodes the fixed-scope rule |
 | Q6 | Budget | **Full ~32-week plan (P0–P7)**, phases ordered by standalone value so any early stop still leaves net-positive artifacts |
 | Q11 | Upstream engagement (2026-08-18) | **All upstream-PR work removed from this project.** dataframe = Hackage dependency only; the three fork-CI-found Windows bugs go to a separate DataFrame-repo effort outside keel; execution is local-first (develop all four packages + umbrella locally, publish in one final stage) |
 
@@ -431,7 +431,7 @@ R interop, or a curated library inventory.
 | # | Question | Recommendation |
 |---|---|---|
 | Q4 | ONNX ceiling: inference-only permanently, or eventual training intent (forces hasktorch [no Windows] or a self-built AD [historically fatal])? | Inference-only, stated up front: "train where the ecosystem is, run where your types are" |
-| Q5 | Storable column upstream surgery (the real zero-copy fix; months of work on someone else's core type, no HSDS-branded artifact) | Defer; raise with mchav only after B-track PRs establish trust |
+| Q5 | Storable column upstream surgery (the real zero-copy fix; months of work on someone else's core type, no keel-branded artifact) | Defer; raise with mchav only after B-track PRs establish trust |
 | Q7 | Success metric: accept "single-digit external dependents + landed PRs" as success? | Yes — anything else is self-deception per the adoption data |
 | Q8 | License: MIT vs Apache-2.0 (explicit patent grant, relevant for bindings to a Microsoft-owned runtime) | MIT, for upstream mobility |
 | Q9 | IHaskell maintenance labor (B8): pure upstream work, possible co-maintenance burden | Do it once, bounded; decline standing co-maintenance unless the project thrives |

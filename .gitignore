@@ -2,3 +2,4 @@
 .ce/
 # cabal build artifacts
 dist-newstyle/
+memory/
