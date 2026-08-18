@@ -16,6 +16,7 @@
 module Keel.Abi.Arrow.Raw
   ( -- * ArrowSchema
     ArrowSchema (..)
+  , emptyArrowSchema
   , releaseArrowSchema
   , arrowFlagDictionaryOrdered
   , arrowFlagNullable
@@ -23,6 +24,7 @@ module Keel.Abi.Arrow.Raw
 
     -- * ArrowArray
   , ArrowArray (..)
+  , emptyArrowArray
   , releaseArrowArray
 
     -- * ArrowArrayStream
@@ -45,7 +47,7 @@ import Control.Monad (unless)
 import Data.Int (Int64)
 import Foreign.C.String (CString)
 import Foreign.C.Types (CInt (..))
-import Foreign.Ptr (FunPtr, Ptr, nullFunPtr)
+import Foreign.Ptr (FunPtr, Ptr, nullFunPtr, nullPtr)
 import Foreign.Storable (Storable (..))
 
 -- ---------------------------------------------------------------------
@@ -65,6 +67,7 @@ data ArrowSchema = ArrowSchema
   , schemaPrivateData :: Ptr ()
   }
 
+-- | The @ARROW_FLAG_*@ bits of 'schemaFlags'.
 arrowFlagDictionaryOrdered, arrowFlagNullable, arrowFlagMapKeysSorted :: Int64
 arrowFlagDictionaryOrdered = 1
 arrowFlagNullable = 2
@@ -125,6 +128,22 @@ instance Storable ArrowSchema where
     pokeByteOff p oSchemaDictionary (schemaDictionary s)
     pokeByteOff p oSchemaRelease (schemaRelease s)
     pokeByteOff p oSchemaPrivateData (schemaPrivateData s)
+
+-- | All-null\/zero template — the starting point for building an export,
+-- and the spec's representation of a released\/moved struct.
+emptyArrowSchema :: ArrowSchema
+emptyArrowSchema =
+  ArrowSchema
+    { schemaFormat = nullPtr
+    , schemaName = nullPtr
+    , schemaMetadata = nullPtr
+    , schemaFlags = 0
+    , schemaNChildren = 0
+    , schemaChildren = nullPtr
+    , schemaDictionary = nullPtr
+    , schemaRelease = nullFunPtr
+    , schemaPrivateData = nullPtr
+    }
 
 foreign import ccall "dynamic"
   callSchemaRelease :: FunPtr (Ptr ArrowSchema -> IO ()) -> Ptr ArrowSchema -> IO ()
@@ -214,6 +233,24 @@ instance Storable ArrowArray where
     pokeByteOff p oArrayRelease (arrayRelease a)
     pokeByteOff p oArrayPrivateData (arrayPrivateData a)
 
+-- | All-null\/zero template — the starting point for building an export,
+-- and the spec's representation of a released\/moved struct (an
+-- end-of-stream @get_next@ writes exactly this).
+emptyArrowArray :: ArrowArray
+emptyArrowArray =
+  ArrowArray
+    { arrayLength = 0
+    , arrayNullCount = 0
+    , arrayOffset = 0
+    , arrayNBuffers = 0
+    , arrayNChildren = 0
+    , arrayBuffers = nullPtr
+    , arrayChildren = nullPtr
+    , arrayDictionary = nullPtr
+    , arrayRelease = nullFunPtr
+    , arrayPrivateData = nullPtr
+    }
+
 foreign import ccall "dynamic"
   callArrayRelease :: FunPtr (Ptr ArrowArray -> IO ()) -> Ptr ArrowArray -> IO ()
 
@@ -284,12 +321,16 @@ instance Storable ArrowArrayStream where
     pokeByteOff p oStreamRelease (streamRelease s)
     pokeByteOff p oStreamPrivateData (streamPrivateData s)
 
+-- | Invoke a stream's @get_schema@ member (pass the struct's own
+-- pointer as the first argument).
 foreign import ccall "dynamic"
   callStreamGetSchema :: FunPtr StreamGetSchemaFn -> StreamGetSchemaFn
 
+-- | Invoke a stream's @get_next@ member.
 foreign import ccall "dynamic"
   callStreamGetNext :: FunPtr StreamGetNextFn -> StreamGetNextFn
 
+-- | Invoke a stream's @get_last_error@ member.
 foreign import ccall "dynamic"
   callStreamGetLastError :: FunPtr StreamGetLastErrorFn -> StreamGetLastErrorFn
 

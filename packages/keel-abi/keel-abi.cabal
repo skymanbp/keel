@@ -27,6 +27,7 @@ common warnings
 library
     import:           warnings
     exposed-modules:
+        Keel.Abi.Arrow
         Keel.Abi.Arrow.Raw
         Keel.Abi.DLPack.Raw
     hs-source-dirs:   src
@@ -39,6 +40,15 @@ test-suite keel-abi-layout
     hs-source-dirs:   test
     c-sources:        test/cbits/layout_gate.c
     cc-options:       -std=c11
+    build-depends:
+        base,
+        keel-abi
+
+test-suite keel-abi-managed
+    import:           warnings
+    type:             exitcode-stdio-1.0
+    main-is:          Managed.hs
+    hs-source-dirs:   test
     build-depends:
         base,
         keel-abi
