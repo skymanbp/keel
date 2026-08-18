@@ -16,16 +16,24 @@
   this index gets regenerated automatically.
 -->
 
-*Updated: 2026-08-18 00:04*  |  Sessions: 1  |  Memories: 38  |  Topics: 0
+*Updated: 2026-08-18 02:21*  |  Sessions: 2  |  Memories: 49  |  Topics: 0
 
 ## Memory Distribution
 
+- `roadmap`: 2
+- `architecture`: 2
 - `windows_test_bugs`: 1
 - `user_decisions`: 1
+- `testing`: 1
+- `scope`: 1
 - `research_gaps`: 1
+- `release`: 1
+- `project_structure`: 1
 - `project_status`: 1
+- `project-layout`: 1
 - `pending_decisions`: 1
 - `ml_standards`: 1
+- `keel-dyn`: 1
 - `ihaskell_windows`: 1
 - `hasktorch_status`: 1
 - `haskell_research`: 1
@@ -38,27 +46,27 @@
 - `fork_structure`: 1
 - `fork_CI_results`: 1
 - `ecosystem_landscape`: 1
+- `documentation`: 1
 - `design_inspiration`: 1
 - `dependency_strategy`: 1
 - `data_interchange`: 1
-- `ci_monitoring`: 1
-- `cc_memory_plan`: 1
-- `build_success`: 1
-- `build-fix`: 1
-- `PR_preparation`: 1
-- `P0_build_verification`: 1
-- `Hasktorch_status`: 1
-- `Haskell_ML_ecosystem`: 1
-- `Haskell packages`: 1
 
 ## By Category
 
-- `result`: 19 entries  (avg importance 3.5)
-- `note`: 9 entries  (avg importance 2.9)
-- `config`: 3 entries  (avg importance 3.3)
-- `decision`: 3 entries  (avg importance 4.0)
-- `arch`: 2 entries  (avg importance 4.5)
-- `task`: 2 entries  (avg importance 3.5)
+- `result`: 20 entries  (avg importance 3.5)
+- `note`: 11 entries  (avg importance 2.9)
+- `decision`: 7 entries  (avg importance 4.4)
+- `config`: 4 entries  (avg importance 3.5)
+- `task`: 4 entries  (avg importance 4.0)
+- `arch`: 3 entries  (avg importance 4.0)
+
+## Project Vocabulary
+
+`GHC`, `HSDS`, `API`, `STATUS`, `ASSESS`, `EVID`, `PLAN`, `STEP`, `UNKNOWN`, `SIMD`, `BLAS`, `LTS`, `FIT`, `ONNX`, `mem.py`, `MIT`, `README`, `GPU`, `CSV`, `MSYS2`, `STRENGTHS`, `WEAKNESSES`, `LLVM`, `LAPACK`, `x86_64`
+
+## Recent Archives
+
+- `memory/sessions/2026/08/session_20260818_022144_866.md`
 
 ---
 *Query:        `python -m cc_memory.cli.mem --project <path> stats`*

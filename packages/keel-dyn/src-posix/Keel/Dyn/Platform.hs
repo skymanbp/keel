@@ -13,7 +13,7 @@ module Keel.Dyn.Platform
   , addSearchDir
   ) where
 
-import Control.Exception (IOException, finally, try)
+import Control.Exception (Exception, IOException, finally, try)
 import Foreign.Ptr (FunPtr, castFunPtr)
 import qualified System.Posix.DynamicLinker as DL
 
@@ -24,6 +24,7 @@ data Library = Library
     -- ^ The path\/name the library was requested as.
   }
 
+-- | Failure modes of loading and symbol resolution.
 data DynError
   = LibraryNotFound FilePath String
     -- ^ Library could not be loaded; the 'String' carries OS detail.
@@ -31,6 +32,10 @@ data DynError
     -- ^ The named symbol is absent from the named library.
   deriving (Eq, Show)
 
+instance Exception DynError
+
+-- | Load a shared library by bare name or path. Search order is documented
+-- in "Keel.Dyn".
 loadLibrary :: FilePath -> IO (Either DynError Library)
 loadLibrary path = do
   r <- try (DL.dlopen path [DL.RTLD_NOW, DL.RTLD_LOCAL])
@@ -38,9 +43,12 @@ loadLibrary path = do
     Left (e :: IOException) -> Left (LibraryNotFound path (show e))
     Right dl -> Right (Library dl path)
 
+-- | Release the OS handle. 'FunPtr's resolved from this 'Library' must not
+-- be called afterwards.
 closeLibrary :: Library -> IO ()
 closeLibrary = DL.dlclose . libDL
 
+-- | 'loadLibrary' \/ 'closeLibrary' bracket.
 withLibrary :: FilePath -> (Library -> IO a) -> IO (Either DynError a)
 withLibrary path act = do
   r <- loadLibrary path
@@ -48,6 +56,9 @@ withLibrary path act = do
     Left e -> pure (Left e)
     Right lib -> (Right <$> act lib) `finally` closeLibrary lib
 
+-- | Resolve an exported symbol to a 'FunPtr', to be invoked through a
+-- @foreign import ccall \"dynamic\"@ wrapper. The result type is the
+-- caller's unchecked claim about the C signature.
 resolveSym :: Library -> String -> IO (Either DynError (FunPtr a))
 resolveSym lib name = do
   r <- try (DL.dlsym (libDL lib) name)
@@ -56,6 +67,8 @@ resolveSym lib name = do
       Left (SymbolNotFound (libraryPath lib) (name <> ": " <> show e))
     Right fp -> Right (castFunPtr fp)
 
+-- | 'resolveSym' flattened to 'Maybe', for symbols whose absence is an
+-- expected, degradable condition rather than an error.
 resolveOptional :: Library -> String -> IO (Maybe (FunPtr a))
 resolveOptional lib name = either (const Nothing) Just <$> resolveSym lib name
 

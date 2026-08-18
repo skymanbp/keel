@@ -1,13 +1,13 @@
 # PROGRESS — HSDS
 
-*Generated: 2026-08-18T02:07:23* · via user_prompt · D:\Projects\HSDS
+*Generated: 2026-08-18T02:24:06* · via session_start_refresh · D:\Projects\HSDS
 
 > SINGLE SOURCE OF TRUTH for session handoff. Always full-rewrite from SQLite
 > table `progress`. **Never append. Never patch by hand.**
 
 ## 0. Session
 
-🟢 **Current session**: `#f627a4e5`  ·  started `2026-08-18 02:06`  ·  last write `2026-08-18 02:07`  ·  trigger `user_prompt`
+🟢 **Current session**: `#f627a4e5`  ·  started `2026-08-18 02:06`  ·  last write `2026-08-18 02:24`  ·  trigger `session_start_refresh`
 
 > If your Claude session ID does NOT start with `f627a4e5`, this row was written by a different session — treat the §3 todos / §6 files as that session's work, not yours.
 
@@ -15,48 +15,81 @@
 
 ## 1. Current Request
 
-列出路线图。我们应该是只借用DataFrame这一个仓库，其他都是独立发布的，先把其他所有我们本地能完成的步骤做完，剩余的直接发布我们自己的仓库就行了吧？需要DataFrame仓库PR吗？
+本仓库用于开发Haskell语言专用Data Science / Machine Learning工具包，旨在让Haskell也能拥有强大的DS/ML开发能力。包本身语言为纯英文。你来进行调研、思考、比对、设计，给出详细完整的多步骤计划。
 
 ## 2. Status
 
-**Done** —    *(none yet)*
+**Done** —    DataFrame PR not required—four capability packages (keel-dyn, keel-abi, keel-onnx, keel-linalg) have zero upstream dependencies; dataframe-core is a standard Hackage library dependency only in keel umbrella package.; Upstream PR track (steps #1 CI PR and #9 PR group) removed from plan; 3 Windows test bugs discovered in fork CI will be filed as separate DataHaskell/dataframe issues, not blocking keel.; Fork CI (skymanbp/dataframe run 32095552668) final result: 4/4 builds green; Windows tests: 3 named upstream bugs (tmp hardcoding, CRLF×2, quote boundary) caught; macOS tests all green.; Release strategy: build all five packages locally (Windows primary validation), then single publish batch (Hackage 0.1 + Stackage nightly); no incremental upstream PRs.
 
-**In-flight** — *(none active)*
+**In-flight** — Local development plan now 10 steps: P0 proof→L1 dyn→L2 abi→L3 onnx→L4 linalg→L5 umbrella+tutorials→build CI→Hackage release→Stackage nightly→(optional) Discourse; ccm 3/10 done or in-flight.; keel modular architecture: four independent ability packages (dyn/abi/onnx/linalg) + umbrella coordination via doctor/setup utilities; frame↔buffer bridge in umbrella only, no circular deps.
 
 **Blocked** —  *(none)*
 
 ## 3. Open Todos
 
-*(no open todos)*
+- [ ] `medium` keel-dyn L1 complete: Windows/POSIX dual-platform runtime dynamic loader (LoadLibrary/dlopen) FunPtr resolution—Windows smoke test 1/1 PASS (GetTickCount64 + negative examples)
+- [ ] `medium` commit e90d4c2.
 
 ## 4. Plan (sequenced next steps)
 
-*(no plan recorded)*
+keel-dyn L1 complete: Windows/POSIX dual-platform runtime dynamic loader (LoadLibrary/dlopen) FunPtr resolution—Windows smoke test 1/1 PASS (GetTickCount64 + negative examples); commit e90d4c2.
 
 ## 5. Critical Context (must-know memories)
 
+- #43 `decision` [scope] Upstream PR track (steps #1 CI PR and #9 PR group) removed from plan; 3 Windows test bugs discovered in fork CI will be filed as separate DataHaskell/dataframe issues, not blocking keel.
+- #42 `decision` [architecture] DataFrame PR not required—four capability packages (keel-dyn, keel-abi, keel-onnx, keel-linalg) have zero upstream dependencies; dataframe-core is a standard Hackage library dependency only in keel um
+- #41 `task` [roadmap] Complete all locally-completable development steps first, then publish remaining work as independent repositories without needing DataFrame PR.
+- #40 `decision` [project_structure] Architecture decision: only borrow DataFrame repository for that single component, all other packages developed independently and published separately to own repositories.
+- #31 `result` [fork_CI_results] Fork CI results: 4/4 builds pass (Windows+macOS), macOS tests 100% pass, Windows tests fail on 3 upstream migration bugs (hardcoded /tmp, CRLF×2, quote boundary)
+- #30 `result` [P0_build_verification] P0 dual build verification complete: Hackage user path PASS (173s, smoke test ok), source tree PASS (217s after MAX_PATH fix); both paths compile cleanly with GHC 9.12.4
 - #2 `decision` [dependency_strategy] DataHaskell initiative stalled; HLearn abandoned by Izbicki; vector, statistics, ad packages actively maintained but mature/stable rather than cutting-edge; recommend building on proven foundations (v
 - #1 `arch` [ecosystem_landscape] Haskell ML/DS ecosystem fragmented: hasktorch (PyTorch bindings), hmatrix (linear algebra), accelerate (GPU via LLVM), massiv (parallel arrays), backprop (autodiff), statistics (basic stats); no unifi
-- #25 `result` [build-fix] Background build task beg0z6o3l completed successfully (exit code 0) after re-running source-tree build with short builddir to clear MAX_PATH issues.
-- #21 `result` [ihaskell_windows] IHaskell PR #1595 merged to add Windows support with documented caveats
-- #18 `result` [build_success] P0 dual build (source tree + Hackage) with GHC 9.12.4 completed successfully with exit code 0
-- #15 `result` [ghc_versions] GHC 9.10 is in active development as of mid-2026, with planned releases including 9.12 and experimental WebAssembly/JavaScript backends in progress.
-- #12 `note` [GHC backends] GHC LLVM backend supports multiple LLVM versions with platform-specific considerations; NCG backend provides SIMD primitives on x86/AArch64 but with FFI limitations.
-- #10 `result` [GHC SIMD] GHC 9.16.1 includes notable changes to SIMD support, with improvements to vector primitives and backend support (x86 NCG, AArch64, LLVM).
-- #5 `result` [Haskell_ML_ecosystem] Haskell DS/ML ecosystem research completed: verified 20 major packages (Grenade, HMatrix, Repa, Monad-Bayes, Linear, Hasktorch, Orthotope, AD, mwc-random, dense-linear-algebra) with current versions,
-- #3 `note` [design_inspiration] Modern ML frameworks adopt lazy evaluation (Polars vs Pandas), expression APIs, and Arrow-native formats; Haskell's native laziness is architectural advantage; consider expression-based API design sim
+- #49 `decision` [release] Release strategy: build all five packages locally (Windows primary validation), then single publish batch (Hackage 0.1 + Stackage nightly); no incremental upstream PRs.
+- #46 `config` [roadmap] Local development plan now 10 steps: P0 proof→L1 dyn→L2 abi→L3 onnx→L4 linalg→L5 umbrella+tutorials→build CI→Hackage release→Stackage nightly→(optional) Discourse; ccm 3/10 done or in-flight.
 
 ## 6. Files Touched This Session
 
-**edit**:
-  - `d:\Projects\HSDS\contrib\dataframe-ci\PR-DRAFT.md`
-  - `d:\Projects\HSDS\docs\p0\BUILD-REPORT.md`
-  - `d:\Projects\HSDS\.gitignore`
-
 **read**:
+  - `C:\Users\skyma\AppData\Local\Temp\claude\d--Projects-HSDS\f627a4e5-ac32-4940-bb23-883811ffb134\scratchpad\synthesis.json`
+  - `C:\Users\skyma\AppData\Local\Temp\claude\d--Projects-HSDS\f627a4e5-ac32-4940-bb23-883811ffb134\scratchpad\quay_design.md`
+  - `C:\Users\skyma\AppData\Local\Temp\claude\d--Projects-HSDS\f627a4e5-ac32-4940-bb23-883811ffb134\scratchpad\summary_rowan_typesafe.md`
+  - `C:\Users\skyma\AppData\Local\Temp\claude\d--Projects-HSDS\f627a4e5-ac32-4940-bb23-883811ffb134\scratchpad\summary_conflux_federation.md`
+  - `C:\Users\skyma\AppData\Local\Temp\claude\d--Projects-HSDS\f627a4e5-ac32-4940-bb23-883811ffb134\scratchpad\research_dataframes.md`
+  - `C:\Users\skyma\AppData\Local\Temp\claude\d--Projects-HSDS\f627a4e5-ac32-4940-bb23-883811ffb134\scratchpad\research_ml.md`
+  - `C:\Users\skyma\AppData\Local\Temp\claude\d--Projects-HSDS\f627a4e5-ac32-4940-bb23-883811ffb134\scratchpad\research_crosslang.md`
+  - `C:\Users\skyma\AppData\Local\Temp\claude\d--Projects-HSDS\f627a4e5-ac32-4940-bb23-883811ffb134\scratchpad\research_history.md`
+  - `C:\Users\skyma\AppData\Local\Temp\claude\d--Projects-HSDS\f627a4e5-ac32-4940-bb23-883811ffb134\scratchpad\research_numerics.md`
+  - `C:\Users\skyma\AppData\Local\Temp\claude\d--Projects-HSDS\f627a4e5-ac32-4940-bb23-883811ffb134\scratchpad\research_platform.md`
+  - `d:\Projects\HSDS\memory\PROGRESS.md`
+  - `D:\Projects\HSDS\memory\.plan_raw.md`
   - `D:\Projects\HSDS\memory\PROGRESS.md`
   - `D:\Projects\HSDS\memory\PLAN.md`
+  - `D:\Projects\HSDS\PLAN.md`
   - `D:\Projects\cc-memory\cc_memory\core\plan.py`
+  - `d:\Projects\HSDS\memory\MEMORY.md`
+  - `d:\Projects\HSDS\PLAN.md`
+
+**edit**:
+  - `d:\Projects\HSDS\PLAN.md`
+  - `d:\Projects\HSDS\LICENSE`
+  - `d:\Projects\HSDS\README.md`
+  - `d:\Projects\HSDS\GOVERNANCE.md`
+  - `d:\Projects\HSDS\CONTRIBUTING.md`
+  - `d:\Projects\HSDS\contrib\dataframe-ci\ci-windows-macos.yml`
+  - `d:\Projects\HSDS\contrib\dataframe-ci\PR-DRAFT.md`
+  - `d:\Projects\HSDS\docs\announce\discourse-draft.md`
+  - `C:\Users\skyma\AppData\Local\Temp\claude\d--Projects-HSDS\f627a4e5-ac32-4940-bb23-883811ffb134\scratchpad\p0-build\p0-build.cabal`
+  - `C:\Users\skyma\AppData\Local\Temp\claude\d--Projects-HSDS\f627a4e5-ac32-4940-bb23-883811ffb134\scratchpad\p0-build\app\Main.hs`
+  - `C:\Users\skyma\AppData\Local\Temp\claude\d--Projects-HSDS\f627a4e5-ac32-4940-bb23-883811ffb134\scratchpad\p0_run.sh`
+  - `d:\Projects\HSDS\docs\p0\BUILD-REPORT.md`
+  - `d:\Projects\HSDS\.gitignore`
+  - `C:\Users\skyma\AppData\Local\Temp\claude\d--Projects-HSDS\f627a4e5-ac32-4940-bb23-883811ffb134\scratchpad\scope_sweep.py`
+  - `d:\Projects\HSDS\cabal.project`
+  - `d:\Projects\HSDS\packages\keel-dyn\keel-dyn.cabal`
+  - `d:\Projects\HSDS\packages\keel-dyn\src\Keel\Dyn.hs`
+  - `d:\Projects\HSDS\packages\keel-dyn\src-windows\Keel\Dyn\Platform.hs`
+  - `d:\Projects\HSDS\packages\keel-dyn\src-posix\Keel\Dyn\Platform.hs`
+  - `d:\Projects\HSDS\packages\keel-dyn\test\Main.hs`
 
 ## 7. Pre-compact Transcript Pointer
 

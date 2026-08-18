@@ -25,10 +25,15 @@ common warnings
 
 library
     import:           warnings
-    exposed-modules:  Keel.Dyn
+    exposed-modules:
+        Keel.Dyn
+        Keel.Dyn.Locate
     other-modules:    Keel.Dyn.Platform
     hs-source-dirs:   src
-    build-depends:    base >=4.20 && <4.23
+    build-depends:
+        base >=4.20 && <4.23,
+        directory >=1.3 && <1.4,
+        filepath >=1.4 && <1.6
     if os(windows)
         hs-source-dirs: src-windows
     else
@@ -42,4 +47,5 @@ test-suite keel-dyn-test
     hs-source-dirs:   test
     build-depends:
         base,
+        filepath,
         keel-dyn
