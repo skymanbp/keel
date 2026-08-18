@@ -16,7 +16,7 @@
   this index gets regenerated automatically.
 -->
 
-*Updated: 2026-08-18 10:02*  |  Sessions: 2  |  Memories: 59  |  Topics: 0
+*Updated: 2026-08-18 10:08*  |  Sessions: 2  |  Memories: 67  |  Topics: 0
 
 ## Memory Distribution
 
@@ -38,6 +38,7 @@
 - `massiv_ghc_support`: 1
 - `keel-dyn`: 1
 - `ihaskell_windows`: 1
+- `hmatrix_install`: 1
 - `hasktorch_status`: 1
 - `hasktorch_ghc_compat`: 1
 - `haskell_research`: 1
@@ -49,17 +50,16 @@
 - `haskell-dataframe`: 1
 - `ghc_versions`: 1
 - `fork_structure`: 1
-- `fork_CI_results`: 1
 
 ## By Category
 
-- `result`: 29 entries  (avg importance 3.6)
-- `note`: 11 entries  (avg importance 2.9)
+- `result`: 35 entries  (avg importance 3.6)
+- `note`: 12 entries  (avg importance 2.9)
 - `decision`: 7 entries  (avg importance 4.4)
 - `config`: 4 entries  (avg importance 3.5)
 - `task`: 4 entries  (avg importance 4.0)
 - `arch`: 3 entries  (avg importance 4.0)
-- `bug`: 1 entries  (avg importance 2.0)
+- `bug`: 2 entries  (avg importance 2.5)
 
 ## Project Vocabulary
 

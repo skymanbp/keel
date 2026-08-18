@@ -29,6 +29,7 @@ common warnings
 library
     import:           warnings
     exposed-modules:
+        Keel.Bridge
         Keel.Doctor
         Keel.Setup
     hs-source-dirs:   src
@@ -36,13 +37,16 @@ library
         SHA >=1.6 && <1.7,
         base >=4.20 && <4.23,
         bytestring >=0.11 && <0.13,
+        dataframe-core >=2.4 && <2.5,
         directory >=1.3 && <1.4,
         filepath >=1.4 && <1.6,
         keel-abi,
         keel-dyn,
         keel-linalg,
         keel-onnx,
-        process >=1.6 && <1.7
+        process >=1.6 && <1.7,
+        text >=2.0 && <2.2,
+        vector >=0.13 && <0.14
 
 executable keel
     import:           warnings
@@ -61,3 +65,15 @@ test-suite keel-doctor-test
     build-depends:
         base,
         keel
+
+test-suite keel-bridge-test
+    import:           warnings
+    type:             exitcode-stdio-1.0
+    main-is:          BridgeTest.hs
+    hs-source-dirs:   test
+    build-depends:
+        base,
+        dataframe-core,
+        keel,
+        text,
+        vector
