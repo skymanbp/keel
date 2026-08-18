@@ -16,7 +16,7 @@
   this index gets regenerated automatically.
 -->
 
-*Updated: 2026-08-18 02:21*  |  Sessions: 2  |  Memories: 49  |  Topics: 0
+*Updated: 2026-08-18 09:17*  |  Sessions: 2  |  Memories: 54  |  Topics: 0
 
 ## Memory Distribution
 
@@ -32,10 +32,13 @@
 - `project_status`: 1
 - `project-layout`: 1
 - `pending_decisions`: 1
+- `parquet_ecosystem`: 1
 - `ml_standards`: 1
+- `massiv_ghc_support`: 1
 - `keel-dyn`: 1
 - `ihaskell_windows`: 1
 - `hasktorch_status`: 1
+- `hasktorch_ghc_compat`: 1
 - `haskell_research`: 1
 - `haskell_packages`: 1
 - `haskell_libraries`: 1
@@ -47,13 +50,10 @@
 - `fork_CI_results`: 1
 - `ecosystem_landscape`: 1
 - `documentation`: 1
-- `design_inspiration`: 1
-- `dependency_strategy`: 1
-- `data_interchange`: 1
 
 ## By Category
 
-- `result`: 20 entries  (avg importance 3.5)
+- `result`: 25 entries  (avg importance 3.6)
 - `note`: 11 entries  (avg importance 2.9)
 - `decision`: 7 entries  (avg importance 4.4)
 - `config`: 4 entries  (avg importance 3.5)
