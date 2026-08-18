@@ -7,10 +7,17 @@ module Main (main) where
 import Control.Exception (try)
 import Control.Monad (unless)
 import Data.Vector.Storable qualified as VS
+import Foreign.C.Types (CInt (..))
+import Foreign.Ptr (FunPtr)
+import System.Environment (lookupEnv)
 
+import Keel.Dyn (capLibrary, resolveOptional)
 import Keel.Linalg
 import Keel.Linalg.Backend (isILP64Config)
 import TestBackend (withTestBackend)
+
+foreign import ccall unsafe "dynamic"
+  callGetNumThreads :: FunPtr (IO CInt) -> IO CInt
 
 expect :: Bool -> String -> IO ()
 expect ok msg = unless ok (fail msg)
@@ -30,6 +37,18 @@ run :: Backend -> IO ()
 run be = do
   putStrLn ("backend: " <> backendConfig be)
   expect (take 8 (backendConfig be) == "OpenBLAS") "config string does not name OpenBLAS"
+
+  -- thread-pin hazard: unless the user chose a thread count themselves,
+  -- openBackend must have pinned the OpenBLAS pool to 1 (read back via
+  -- the optional openblas_get_num_threads)
+  userThreads <- lookupEnv "OPENBLAS_NUM_THREADS"
+  mGet <- resolveOptional (capLibrary be) "openblas_get_num_threads"
+  case (userThreads, mGet) of
+    (Nothing, Just fp) -> do
+      nthr <- callGetNumThreads fp
+      expect (nthr == 1) ("BLAS pool not pinned to 1 thread: " <> show nthr)
+    (Just _, _) -> putStrLn "note: OPENBLAS_NUM_THREADS set by user, pin check skipped"
+    (Nothing, Nothing) -> putStrLn "note: openblas_get_num_threads absent, pin unverifiable"
 
   -- ddot: [1,2,3] . [4,5,6] = 32
   d <- ddot be (VS.fromList [1, 2, 3]) (VS.fromList [4, 5, 6])
@@ -107,6 +126,20 @@ run be = do
   pin <- unwrap "dpotri" =<< dpotri be Lower 2 ch
   expect (VS.head pin == 0.25 && abs (VS.last pin - 1 / 9) < 1e-15)
     ("dpotri: " <> show (VS.toList pin))
+
+  -- dsyevd diag(3,1): w=[1,3] ascending; eigenvectors +/- unit basis
+  (w2, v2) <- unwrap "dsyevd" =<< dsyevd be Lower 2 (VS.fromList [3, 0, 0, 1])
+  expect (VS.toList w2 == [1, 3]) ("dsyevd w: " <> show (VS.toList w2))
+  expect (map abs (VS.toList v2) == [0, 1, 1, 0]) ("dsyevd v: " <> show (VS.toList v2))
+
+  -- dgesdd of diag(3,4): s = [4,3] descending exact
+  (sv, _, _) <- unwrap "dgesdd" =<< dgesdd be 2 2 (VS.fromList [3, 0, 0, 4])
+  expect (VS.toList sv == [4, 3]) ("dgesdd s: " <> show (VS.toList sv))
+
+  -- dgeev of the rotation [[0,-1],[1,0]]: eigenvalues +/- i
+  (wr2, wi2, _) <- unwrap "dgeev" =<< dgeev be 2 (VS.fromList [0, -1, 1, 0])
+  expect (approxEq 1e-14 (VS.toList wr2) [0, 0]) ("dgeev wr: " <> show (VS.toList wr2))
+  expect (approxEq 1e-14 (map abs (VS.toList wi2)) [1, 1]) ("dgeev wi: " <> show (VS.toList wi2))
 
   putStrLn "keel-linalg-smoke: all checks passed against a real OpenBLAS"
   where

@@ -116,6 +116,59 @@ data Ops = Ops
            -> Ptr Double -> CInt            -- A (factor in, inverse out), lda
            -> IO CInt
            )
+  , opDgesdd
+      :: FunPtr
+           (  CInt -> CChar                 -- layout, jobz
+           -> CInt -> CInt                  -- m, n
+           -> Ptr Double -> CInt            -- A (destroyed), lda
+           -> Ptr Double                    -- s
+           -> Ptr Double -> CInt            -- U, ldu
+           -> Ptr Double -> CInt            -- VT, ldvt
+           -> IO CInt
+           )
+  , opDgesvd
+      :: FunPtr
+           (  CInt -> CChar -> CChar        -- layout, jobu, jobvt
+           -> CInt -> CInt                  -- m, n
+           -> Ptr Double -> CInt            -- A (destroyed), lda
+           -> Ptr Double                    -- s
+           -> Ptr Double -> CInt            -- U, ldu
+           -> Ptr Double -> CInt            -- VT, ldvt
+           -> Ptr Double                    -- superb workspace
+           -> IO CInt
+           )
+  , opDsyevd
+      :: FunPtr
+           (  CInt -> CChar -> CChar        -- layout, jobz, uplo
+           -> CInt                          -- n
+           -> Ptr Double -> CInt            -- A (in sym, out eigenvectors), lda
+           -> Ptr Double                    -- w (eigenvalues ascending)
+           -> IO CInt
+           )
+  , opDgeev
+      :: FunPtr
+           (  CInt -> CChar -> CChar        -- layout, jobvl, jobvr
+           -> CInt                          -- n
+           -> Ptr Double -> CInt            -- A (destroyed), lda
+           -> Ptr Double -> Ptr Double      -- wr, wi
+           -> Ptr Double -> CInt            -- VL, ldvl
+           -> Ptr Double -> CInt            -- VR, ldvr
+           -> IO CInt
+           )
+  , opDgeqrf
+      :: FunPtr
+           (  CInt -> CInt -> CInt          -- layout, m, n
+           -> Ptr Double -> CInt            -- A (out: packed QR), lda
+           -> Ptr Double                    -- tau
+           -> IO CInt
+           )
+  , opDorgqr
+      :: FunPtr
+           (  CInt -> CInt -> CInt -> CInt  -- layout, m, n, k
+           -> Ptr Double -> CInt            -- A (packed in, Q out), lda
+           -> Ptr Double                    -- tau
+           -> IO CInt
+           )
   , opSetNumThreads :: Maybe (FunPtr (CInt -> IO ()))
     -- ^ @openblas_set_num_threads@ — optional so its absence degrades
     -- only thread control, not the backend.
@@ -212,6 +265,12 @@ assemble lib cfg = do
       <**> "LAPACKE_dgetri"
       <**> "LAPACKE_dpotrf"
       <**> "LAPACKE_dpotri"
+      <**> "LAPACKE_dgesdd"
+      <**> "LAPACKE_dgesvd"
+      <**> "LAPACKE_dsyevd"
+      <**> "LAPACKE_dgeev"
+      <**> "LAPACKE_dgeqrf"
+      <**> "LAPACKE_dorgqr"
   threadsM <- resolveOptional lib "openblas_set_num_threads"
   case ($ threadsM) <$> ops of
     Left e -> do

@@ -112,6 +112,25 @@ cholScript n =
     <> "n = " <> show n <> "\n"
     <> pyEmit "np.linalg.cholesky(d.reshape(n, n))"
 
+svdValsScript :: Int -> Int -> String
+svdValsScript m n =
+  pyHeader
+    <> "m, n = " <> show m <> ", " <> show n <> "\n"
+    <> pyEmit "np.linalg.svd(d.reshape(m, n), compute_uv=False)"
+
+eighValsScript :: Int -> String
+eighValsScript n =
+  pyHeader
+    <> "n = " <> show n <> "\n"
+    <> pyEmit "np.linalg.eigvalsh(d.reshape(n, n))"
+
+eigValsScript :: Int -> String
+eigValsScript n =
+  pyHeader
+    <> "n = " <> show n <> "\n"
+    <> "w = np.linalg.eigvals(d.reshape(n, n))\n"
+    <> "print('\\n'.join('%.17g\\n%.17g' % (v.real, v.imag) for v in w))\n"
+
 relErr :: Double -> Double -> Double
 relErr got ref = abs (got - ref) / max 1 (abs ref)
 
@@ -228,4 +247,83 @@ run be = do
   checkAgainst "dtrtrs" 1e-10 (VS.toList tsol) tref
   putStrLn "oracle: dtrtrs 30x30 within 1e-10 of numpy"
 
+  -- 9. SVD: singular values vs numpy (both algorithms), then a
+  -- reconstruction gate U diag(s) VT = A (sign-ambiguity-free check of
+  -- the factors themselves)
+  let (vm, vn) = (25, 15)
+      minmn = min vm vn
+      va = VS.fromList (randDoubles 29 (vm * vn))
+  (sv1, u1, vt1) <- unwrap "dgesdd" =<< dgesdd be vm vn va
+  svRef <- runNumpy (svdValsScript vm vn) (VS.toList va)
+  checkAgainst "dgesdd s" 1e-10 (VS.toList sv1) svRef
+  (sv2, _, _) <- unwrap "dgesvd" =<< dgesvd be vm vn va
+  checkAgainst "dgesvd s" 1e-10 (VS.toList sv2) svRef
+  let sVt = VS.fromList
+        [ (sv1 VS.! i) * (vt1 VS.! (i * vn + j))
+        | i <- [0 .. minmn - 1], j <- [0 .. vn - 1]
+        ]
+  recon <- dgemm be NoTrans NoTrans vm vn minmn 1 u1 sVt
+  checkAgainst "svd reconstruction" 1e-10 (VS.toList recon) (VS.toList va)
+  putStrLn "oracle: dgesdd/dgesvd 25x15 singular values + reconstruction within 1e-10"
+
+  -- 10. dsyevd: eigenvalues vs numpy eigvalsh, eigenvectors via the
+  -- residual A V = V diag(w) (signs are ambiguous, residuals are not)
+  let en = 20
+      base = VS.fromList (randDoubles 31 (en * en))
+      sym = VS.fromList
+        [ ((base VS.! (i * en + j)) + (base VS.! (j * en + i))) / 2
+        | i <- [0 .. en - 1], j <- [0 .. en - 1]
+        ]
+  (ew, ev) <- unwrap "dsyevd" =<< dsyevd be Lower en sym
+  ewRef <- runNumpy (eighValsScript en) (VS.toList sym)
+  checkAgainst "dsyevd w" 1e-10 (VS.toList ew) ewRef
+  av <- dgemm be NoTrans NoTrans en en en 1 sym ev
+  let vw = VS.imap (\idx x -> x * (ew VS.! (idx `mod` en))) ev
+  checkAgainst "dsyevd residual" 1e-10 (VS.toList av) (VS.toList vw)
+  putStrLn "oracle: dsyevd 20x20 eigenvalues + residual within 1e-10"
+
+  -- 11. dgeev: complex eigenvalues greedy-matched against numpy (order
+  -- differs between libraries; near-ties make positional compare wrong)
+  let gn2 = 12
+      gea = VS.fromList (randDoubles 37 (gn2 * gn2))
+  (wr, wi, _) <- unwrap "dgeev" =<< dgeev be gn2 gea
+  eigFlat <- runNumpy (eigValsScript gn2) (VS.toList gea)
+  let refPairs = pairUp eigFlat
+      gotPairs = zip (VS.toList wr) (VS.toList wi)
+  matchEigen refPairs gotPairs
+  putStrLn "oracle: dgeev 12x12 eigenvalues matched within 1e-10 of numpy"
+
+  -- 12. QR property gates: Q^T Q = I and Q R = A (both sign-free)
+  let (qm, qn) = (30, 12)
+      qa = VS.fromList (randDoubles 41 (qm * qn))
+  (packed, tau) <- dgeqrf be qm qn qa
+  q <- dorgqr be qm qn qn packed tau
+  qtq <- dgemm be Trans NoTrans qn qn qm 1 q q
+  let eye = [if i == j then 1 else 0 | i <- [0 .. qn - 1], j <- [0 :: Int .. qn - 1]]
+  checkAgainst "QtQ" 1e-12 (VS.toList qtq) eye
+  let r = VS.fromList
+        [ if i <= j then packed VS.! (i * qn + j) else 0
+        | i <- [0 .. qn - 1], j <- [0 .. qn - 1]
+        ]
+  qr <- dgemm be NoTrans NoTrans qm qn qn 1 q r
+  checkAgainst "QR=A" 1e-10 (VS.toList qr) (VS.toList qa)
+  putStrLn "oracle: dgeqrf/dorgqr 30x12 orthogonality + reconstruction gates passed"
+
   putStrLn "keel-linalg-oracle: all oracle checks passed"
+
+pairUp :: [Double] -> [(Double, Double)]
+pairUp (x : y : rest) = (x, y) : pairUp rest
+pairUp _ = []
+
+-- Greedy nearest-neighbour matching of eigenvalue multisets.
+matchEigen :: [(Double, Double)] -> [(Double, Double)] -> IO ()
+matchEigen [] _ = pure ()
+matchEigen (r : rs) gs = do
+  let dists = [(dist r g, i) | (i, g) <- zip [0 :: Int ..] gs]
+      (dmin, imin) = minimum dists
+  expect (dmin <= 1e-10)
+    ("dgeev: ref eigenvalue " <> show r <> " nearest match at distance " <> show dmin)
+  let (before, after) = splitAt imin gs
+  matchEigen rs (before <> drop 1 after)
+  where
+    dist (a, b) (c, d) = sqrt ((a - c) ^ (2 :: Int) + (b - d) ^ (2 :: Int))

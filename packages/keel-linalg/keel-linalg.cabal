@@ -44,6 +44,7 @@ test-suite keel-linalg-smoke
     hs-source-dirs:   test
     build-depends:
         base,
+        keel-dyn,
         keel-linalg,
         process >=1.6 && <1.7,
         vector

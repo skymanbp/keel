@@ -51,6 +51,18 @@ module Keel.Linalg
   , dgetri
   , dpotrf
   , dpotri
+
+    -- * SVD
+  , dgesdd
+  , dgesvd
+
+    -- * Eigendecomposition
+  , dsyevd
+  , dgeev
+
+    -- * QR
+  , dgeqrf
+  , dorgqr
   ) where
 
 import Control.Exception (Exception, throwIO)
@@ -59,7 +71,7 @@ import Data.Vector.Storable qualified as VS
 import Data.Vector.Storable.Mutable qualified as VSM
 import Foreign.C.String (castCharToCChar)
 import Foreign.C.Types (CChar (..), CInt (..))
-import Foreign.Ptr (FunPtr, Ptr)
+import Foreign.Ptr (FunPtr, Ptr, nullPtr)
 
 import Keel.Dyn (capOps)
 import Keel.Linalg.Backend
@@ -463,3 +475,265 @@ dpotri be uplo n f = do
       callDpotri (opDpotri (capOps be))
         lapackRowMajor (uploChar uplo) (fromIntegral n) pa (fromIntegral n)
   interpretInfo "dpotri" info (VS.unsafeFreeze fC)
+
+-- ---------------------------------------------------------------------
+-- SVD
+
+foreign import ccall safe "dynamic"
+  callDgesdd
+    :: FunPtr
+         (  CInt -> CChar -> CInt -> CInt
+         -> Ptr Double -> CInt
+         -> Ptr Double
+         -> Ptr Double -> CInt
+         -> Ptr Double -> CInt
+         -> IO CInt
+         )
+    -> CInt -> CChar -> CInt -> CInt
+    -> Ptr Double -> CInt
+    -> Ptr Double
+    -> Ptr Double -> CInt
+    -> Ptr Double -> CInt
+    -> IO CInt
+
+foreign import ccall safe "dynamic"
+  callDgesvd
+    :: FunPtr
+         (  CInt -> CChar -> CChar -> CInt -> CInt
+         -> Ptr Double -> CInt
+         -> Ptr Double
+         -> Ptr Double -> CInt
+         -> Ptr Double -> CInt
+         -> Ptr Double
+         -> IO CInt
+         )
+    -> CInt -> CChar -> CChar -> CInt -> CInt
+    -> Ptr Double -> CInt
+    -> Ptr Double
+    -> Ptr Double -> CInt
+    -> Ptr Double -> CInt
+    -> Ptr Double
+    -> IO CInt
+
+-- Shared economy-size SVD wrapper: allocate s/U/VT, run the driver's
+-- foreign call, package the triple.
+svdWith
+  :: String
+  -> Int
+  -> Int
+  -> VS.Vector Double
+  -> (Ptr Double -> Ptr Double -> Ptr Double -> Ptr Double -> IO CInt)
+  -> IO (Either Int (VS.Vector Double, VS.Vector Double, VS.Vector Double))
+svdWith ctx m n a call = do
+  checkDim ctx "A" (VS.length a) (m * n)
+  let minmn = min m n
+  aC <- VS.thaw a
+  s <- VSM.new minmn
+  u <- VSM.new (m * minmn)
+  vt <- VSM.new (minmn * n)
+  info <-
+    VSM.unsafeWith aC $ \pa ->
+      VSM.unsafeWith s $ \ps ->
+        VSM.unsafeWith u $ \pu ->
+          VSM.unsafeWith vt $ \pvt ->
+            call pa ps pu pvt
+  interpretInfo ctx info
+    ((,,) <$> VS.unsafeFreeze s <*> VS.unsafeFreeze u <*> VS.unsafeFreeze vt)
+
+-- | Economy-size SVD by divide and conquer (@LAPACKE_dgesdd@,
+-- @jobz = \'S\'@): returns @(s, U, VT)@ with @s@ descending of length
+-- @min m n@, @U@ of @m x min m n@, @VT@ of @min m n x n@. @Left i@:
+-- the algorithm failed to converge.
+dgesdd
+  :: Backend
+  -> Int -- ^ m
+  -> Int -- ^ n
+  -> VS.Vector Double -- ^ A
+  -> IO (Either Int (VS.Vector Double, VS.Vector Double, VS.Vector Double))
+dgesdd be m n a =
+  svdWith "dgesdd" m n a $ \pa ps pu pvt ->
+    callDgesdd (opDgesdd (capOps be))
+      lapackRowMajor (castCharToCChar 'S')
+      (fromIntegral m) (fromIntegral n)
+      pa (fromIntegral n) ps
+      pu (fromIntegral (min m n))
+      pvt (fromIntegral n)
+
+-- | Economy-size SVD by QR iteration (@LAPACKE_dgesvd@,
+-- @jobu = jobvt = \'S\'@) — slower than 'dgesdd' but a different
+-- algorithm, useful as a cross-check. Same result shape as 'dgesdd'.
+-- @Left i@: @i@ superdiagonals failed to converge.
+dgesvd
+  :: Backend
+  -> Int -- ^ m
+  -> Int -- ^ n
+  -> VS.Vector Double -- ^ A
+  -> IO (Either Int (VS.Vector Double, VS.Vector Double, VS.Vector Double))
+dgesvd be m n a = do
+  superb <- VSM.new (max 1 (min m n - 1)) :: IO (VSM.IOVector Double)
+  svdWith "dgesvd" m n a $ \pa ps pu pvt ->
+    VSM.unsafeWith superb $ \psb ->
+      callDgesvd (opDgesvd (capOps be))
+        lapackRowMajor (castCharToCChar 'S') (castCharToCChar 'S')
+        (fromIntegral m) (fromIntegral n)
+        pa (fromIntegral n) ps
+        pu (fromIntegral (min m n))
+        pvt (fromIntegral n)
+        psb
+
+-- ---------------------------------------------------------------------
+-- Eigendecomposition
+
+foreign import ccall safe "dynamic"
+  callDsyevd
+    :: FunPtr
+         (  CInt -> CChar -> CChar -> CInt
+         -> Ptr Double -> CInt
+         -> Ptr Double
+         -> IO CInt
+         )
+    -> CInt -> CChar -> CChar -> CInt
+    -> Ptr Double -> CInt
+    -> Ptr Double
+    -> IO CInt
+
+foreign import ccall safe "dynamic"
+  callDgeev
+    :: FunPtr
+         (  CInt -> CChar -> CChar -> CInt
+         -> Ptr Double -> CInt
+         -> Ptr Double -> Ptr Double
+         -> Ptr Double -> CInt
+         -> Ptr Double -> CInt
+         -> IO CInt
+         )
+    -> CInt -> CChar -> CChar -> CInt
+    -> Ptr Double -> CInt
+    -> Ptr Double -> Ptr Double
+    -> Ptr Double -> CInt
+    -> Ptr Double -> CInt
+    -> IO CInt
+
+-- | Eigendecomposition of a symmetric matrix by divide and conquer
+-- (@LAPACKE_dsyevd@, @jobz = \'V\'@); only the 'Uplo' triangle is
+-- read. Returns @(w, V)@: eigenvalues ascending, and the eigenvector
+-- for @w[i]@ in /column/ @i@ of the row-major @n x n@ @V@ (i.e.
+-- @V[j*n + i]@), matching @numpy.linalg.eigh@. @Left i@: failed to
+-- converge.
+dsyevd
+  :: Backend
+  -> Uplo
+  -> Int -- ^ n
+  -> VS.Vector Double -- ^ A (symmetric)
+  -> IO (Either Int (VS.Vector Double, VS.Vector Double))
+dsyevd be uplo n a = do
+  checkDim "dsyevd" "A" (VS.length a) (n * n)
+  aC <- VS.thaw a
+  w <- VSM.new n
+  info <-
+    VSM.unsafeWith aC $ \pa ->
+      VSM.unsafeWith w $ \pw ->
+        callDsyevd (opDsyevd (capOps be))
+          lapackRowMajor (castCharToCChar 'V') (uploChar uplo)
+          (fromIntegral n) pa (fromIntegral n) pw
+  interpretInfo "dsyevd" info
+    ((,) <$> VS.unsafeFreeze w <*> VS.unsafeFreeze aC)
+
+-- | Eigendecomposition of a general matrix (@LAPACKE_dgeev@, right
+-- eigenvectors only). Returns @(wr, wi, VR)@ in LAPACK's packed real
+-- convention: eigenvalue @j@ is @wr[j] :+ wi[j]@; for a real
+-- eigenvalue, column @j@ of @VR@ is its eigenvector; a complex
+-- conjugate pair occupies columns @j@ (real part) and @j+1@ (imaginary
+-- part). @Left i@: the QR algorithm failed to converge.
+dgeev
+  :: Backend
+  -> Int -- ^ n
+  -> VS.Vector Double -- ^ A
+  -> IO (Either Int (VS.Vector Double, VS.Vector Double, VS.Vector Double))
+dgeev be n a = do
+  checkDim "dgeev" "A" (VS.length a) (n * n)
+  aC <- VS.thaw a
+  wr <- VSM.new n
+  wi <- VSM.new n
+  vr <- VSM.new (n * n)
+  info <-
+    VSM.unsafeWith aC $ \pa ->
+      VSM.unsafeWith wr $ \pwr ->
+        VSM.unsafeWith wi $ \pwi ->
+          VSM.unsafeWith vr $ \pvr ->
+            callDgeev (opDgeev (capOps be))
+              lapackRowMajor (castCharToCChar 'N') (castCharToCChar 'V')
+              (fromIntegral n) pa (fromIntegral n)
+              pwr pwi
+              nullPtr (fromIntegral n)
+              pvr (fromIntegral n)
+  interpretInfo "dgeev" info
+    ((,,) <$> VS.unsafeFreeze wr <*> VS.unsafeFreeze wi <*> VS.unsafeFreeze vr)
+
+-- ---------------------------------------------------------------------
+-- QR
+
+foreign import ccall safe "dynamic"
+  callDgeqrf
+    :: FunPtr (CInt -> CInt -> CInt -> Ptr Double -> CInt -> Ptr Double -> IO CInt)
+    -> CInt -> CInt -> CInt -> Ptr Double -> CInt -> Ptr Double -> IO CInt
+
+foreign import ccall safe "dynamic"
+  callDorgqr
+    :: FunPtr (CInt -> CInt -> CInt -> CInt -> Ptr Double -> CInt -> Ptr Double -> IO CInt)
+    -> CInt -> CInt -> CInt -> CInt -> Ptr Double -> CInt -> Ptr Double -> IO CInt
+
+-- These two drivers define no positive info values, so success is the
+-- only non-throwing outcome.
+expectClean :: String -> CInt -> IO a -> IO a
+expectClean ctx info onOk
+  | info == 0 = onOk
+  | otherwise = throwIO (LapackBadArgument ctx (fromIntegral (abs info)))
+
+-- | QR factorization (@LAPACKE_dgeqrf@) of an @m x n@ matrix: returns
+-- @(QR, tau)@ where @QR@ packs @R@ in the upper triangle and the
+-- Householder reflectors below, and @tau@ has @min m n@ scalar
+-- factors. Feed both to 'dorgqr' to materialize @Q@.
+dgeqrf
+  :: Backend
+  -> Int -- ^ m
+  -> Int -- ^ n
+  -> VS.Vector Double -- ^ A
+  -> IO (VS.Vector Double, VS.Vector Double)
+dgeqrf be m n a = do
+  checkDim "dgeqrf" "A" (VS.length a) (m * n)
+  aC <- VS.thaw a
+  tau <- VSM.new (min m n)
+  info <-
+    VSM.unsafeWith aC $ \pa ->
+      VSM.unsafeWith tau $ \pt ->
+        callDgeqrf (opDgeqrf (capOps be))
+          lapackRowMajor (fromIntegral m) (fromIntegral n)
+          pa (fromIntegral n) pt
+  expectClean "dgeqrf" info
+    ((,) <$> VS.unsafeFreeze aC <*> VS.unsafeFreeze tau)
+
+-- | Materialize the first @n@ columns of @Q@ from a 'dgeqrf'
+-- factorization (@LAPACKE_dorgqr@): pass the packed @QR@ (@m x n@) and
+-- @tau@ (@k@ reflectors, @k = min m n@ from 'dgeqrf'); the result is
+-- @m x n@ with orthonormal columns.
+dorgqr
+  :: Backend
+  -> Int -- ^ m
+  -> Int -- ^ n
+  -> Int -- ^ k
+  -> VS.Vector Double -- ^ packed QR from 'dgeqrf'
+  -> VS.Vector Double -- ^ tau from 'dgeqrf'
+  -> IO (VS.Vector Double)
+dorgqr be m n k qr tau = do
+  checkDim "dorgqr" "QR" (VS.length qr) (m * n)
+  checkDim "dorgqr" "tau" (VS.length tau) k
+  qrC <- VS.thaw qr
+  tauC <- VS.thaw tau
+  info <-
+    VSM.unsafeWith qrC $ \pa ->
+      VSM.unsafeWith tauC $ \pt ->
+        callDorgqr (opDorgqr (capOps be))
+          lapackRowMajor (fromIntegral m) (fromIntegral n) (fromIntegral k)
+          pa (fromIntegral n) pt
+  expectClean "dorgqr" info (VS.unsafeFreeze qrC)
