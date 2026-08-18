@@ -34,16 +34,24 @@ runPy args = do
     Right (ExitSuccess, out, _) -> Just out
     _ -> Nothing
 
--- The wheel's own onnxruntime.dll is a legitimate runtime for local
--- development; publish-stage CI installs the official archive instead.
+-- The wheel's own shared library is a legitimate runtime for local
+-- development; library file names differ per platform (and carry
+-- version suffixes on Linux/macOS), so glob rather than guess.
 findWheelOrt :: IO (Maybe FilePath)
 findWheelOrt = do
   out <- runPy
     [ "-c"
-    , "import onnxruntime, os\n\
-      \print(os.path.join(os.path.dirname(onnxruntime.__file__), 'capi', 'onnxruntime.dll' if os.name == 'nt' else 'libonnxruntime.so'))\n"
+    , "import onnxruntime, os, glob\n\
+      \d = os.path.join(os.path.dirname(onnxruntime.__file__), 'capi')\n\
+      \for pat in ('onnxruntime.dll', 'libonnxruntime.so*', 'libonnxruntime*.dylib'):\n\
+      \    g = sorted(glob.glob(os.path.join(d, pat)))\n\
+      \    if g:\n\
+      \        print(g[0])\n\
+      \        break\n"
     ]
-  pure (fmap (filter (`notElem` "\r\n")) out)
+  pure $ case fmap (filter (`notElem` "\r\n")) out of
+    Just p | not (null p) -> Just p
+    _ -> Nothing
 
 trainScript :: String
 trainScript =
@@ -139,6 +147,15 @@ run ort = do
         [n] -> pure n
         _ -> fail ("expected 1 output, got " <> show outs)
       putStrLn ("model interface: " <> inName <> " -> " <> outName)
+
+      -- declared-interface introspection: float32 input [-1, 2]
+      -- (dynamic batch axis), float32 output
+      iinfos <- inputInfos sess
+      case iinfos of
+        [Just ti] -> do
+          expect (tiShape ti == [-1, 2]) ("input shape decl: " <> show (tiShape ti))
+          expect (tiElementType ti == 1) ("input dtype decl: " <> show (tiElementType ti))
+        other -> fail ("input infos: " <> show other)
 
       [(shape, ys)] <- runFloats sess [(inName, [4, 2], xTest)] [outName]
       expect (shape == [4, 1]) ("output shape: " <> show shape)

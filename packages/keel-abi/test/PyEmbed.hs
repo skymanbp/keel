@@ -49,6 +49,9 @@ runPy exe args = do
 
 -- Find an interpreter that can import the given module, and the shared
 -- library behind it. Out of process, so a broken python cannot kill us.
+-- POSIX candidates cover plain builds (LIBDIR + INSTSONAME/LDLIBRARY)
+-- and macOS framework builds, where INSTSONAME is framework-relative
+-- and must be joined to PYTHONFRAMEWORKPREFIX instead.
 findPython :: String -> IO (Maybe FilePath)
 findPython pymodule = go ["python", "python3"]
   where
@@ -57,13 +60,23 @@ findPython pymodule = go ["python", "python3"]
       \if os.name == 'nt':\n\
       \    print(os.path.join(sys.base_prefix, 'python%d%d.dll' % sys.version_info[:2]))\n\
       \else:\n\
-      \    print(os.path.join(sysconfig.get_config_var('LIBDIR') or '', sysconfig.get_config_var('INSTSONAME') or ''))\n"
+      \    g = sysconfig.get_config_var\n\
+      \    libdir = g('LIBDIR') or ''\n\
+      \    cands = [os.path.join(libdir, n) for n in (g('INSTSONAME') or '', g('LDLIBRARY') or '') if n]\n\
+      \    fw = g('PYTHONFRAMEWORKPREFIX') or ''\n\
+      \    if fw:\n\
+      \        cands += [os.path.join(fw, n) for n in (g('INSTSONAME') or '', g('LDLIBRARY') or '') if n]\n\
+      \    print(next((c for c in cands if os.path.exists(c)), ''))\n"
     go [] = pure Nothing
     go (exe : rest) = do
       ok <- runPy exe ["-c", "import " <> pymodule]
       case ok of
         Nothing -> go rest
-        Just _ -> runPy exe ["-c", dllScript]
+        Just _ -> do
+          p <- runPy exe ["-c", dllScript]
+          pure $ case p of
+            Just path | not (null path) -> Just path
+            _ -> Nothing
 
 -- | Load CPython through keel-dyn and hand a 'RunScript' to the action;
 -- initialize before, finalize after. When no interpreter that imports
@@ -84,7 +97,9 @@ withEmbeddedPython pymodule requireVar action = do
         fail (requireVar <> " set but no usable python+" <> pymodule <> " found")
       _ -> putStrLn ("SKIP - no usable python+" <> pymodule <> " on this machine")
     Just dll -> do
-      lib <- either (\e -> fail ("load python: " <> show e)) pure =<< loadLibrary dll
+      -- RTLD_GLOBAL: C extension modules (manylinux policy) leave
+      -- Python's own symbols undefined and need them process-visible
+      lib <- either (\e -> fail ("load python: " <> show e)) pure =<< loadLibraryGlobal dll
       pyInitEx <- requireSym lib "Py_InitializeEx"
       pyRun <- requireSym lib "PyRun_SimpleString"
       pyFin <- requireSym lib "Py_FinalizeEx"

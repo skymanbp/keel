@@ -6,6 +6,7 @@ module Keel.Dyn.Platform
   , libraryPath
   , DynError (..)
   , loadLibrary
+  , loadLibraryGlobal
   , closeLibrary
   , withLibrary
   , resolveSym
@@ -35,10 +36,21 @@ data DynError
 instance Exception DynError
 
 -- | Load a shared library by bare name or path. Search order is documented
--- in "Keel.Dyn".
+-- in "Keel.Dyn". Symbols stay private to the handle (@RTLD_LOCAL@).
 loadLibrary :: FilePath -> IO (Either DynError Library)
-loadLibrary path = do
-  r <- try (DL.dlopen path [DL.RTLD_NOW, DL.RTLD_LOCAL])
+loadLibrary = loadWith [DL.RTLD_NOW, DL.RTLD_LOCAL]
+
+-- | Like 'loadLibrary' but with @RTLD_GLOBAL@: the library's symbols
+-- become visible to everything loaded afterwards. Needed when later
+-- loads expect this library's symbols to already be in the process —
+-- the canonical case is @libpython@, whose extension modules
+-- deliberately leave Python's symbols undefined (manylinux policy).
+loadLibraryGlobal :: FilePath -> IO (Either DynError Library)
+loadLibraryGlobal = loadWith [DL.RTLD_NOW, DL.RTLD_GLOBAL]
+
+loadWith :: [DL.RTLDFlags] -> FilePath -> IO (Either DynError Library)
+loadWith flags path = do
+  r <- try (DL.dlopen path flags)
   pure $ case r of
     Left (e :: IOException) -> Left (LibraryNotFound path (show e))
     Right dl -> Right (Library dl path)

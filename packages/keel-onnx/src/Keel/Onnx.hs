@@ -34,6 +34,9 @@ module Keel.Onnx
   , withSessionFromBytes
   , inputNames
   , outputNames
+  , TensorInfo (..)
+  , inputInfos
+  , outputInfos
 
     -- * Inference
   , OnnxTensor (..)
@@ -115,6 +118,11 @@ foreign import ccall safe "dynamic"
     -> CInt -> CInt -> Ptr a -> IO (Ptr OrtStatusT)
 
 foreign import ccall safe "dynamic"
+  callPZP_S
+    :: FunPtr (Ptr a -> CSize -> Ptr b -> IO (Ptr OrtStatusT))
+    -> Ptr a -> CSize -> Ptr b -> IO (Ptr OrtStatusT)
+
+foreign import ccall safe "dynamic"
   callPZPP_S
     :: FunPtr (Ptr a -> CSize -> Ptr b -> Ptr c -> IO (Ptr OrtStatusT))
     -> Ptr a -> CSize -> Ptr b -> Ptr c -> IO (Ptr OrtStatusT)
@@ -181,6 +189,13 @@ data OrtOps = OrtOps
   , oCreateCpuMemoryInfo :: FunPtr (CInt -> CInt -> Ptr (Ptr OrtMemoryInfoT) -> IO (Ptr OrtStatusT))
   , oAllocatorFree :: FunPtr (Ptr OrtAllocatorT -> Ptr () -> IO (Ptr OrtStatusT))
   , oGetAllocatorWithDefaultOptions :: FunPtr (Ptr (Ptr OrtAllocatorT) -> IO (Ptr OrtStatusT))
+  , oSessionGetInputTypeInfo
+      :: FunPtr (Ptr OrtSessionT -> CSize -> Ptr (Ptr OrtTypeInfoT) -> IO (Ptr OrtStatusT))
+  , oSessionGetOutputTypeInfo
+      :: FunPtr (Ptr OrtSessionT -> CSize -> Ptr (Ptr OrtTypeInfoT) -> IO (Ptr OrtStatusT))
+  , oCastTypeInfoToTensorInfo
+      :: FunPtr (Ptr OrtTypeInfoT -> Ptr (Ptr OrtTensorTypeAndShapeInfoT) -> IO (Ptr OrtStatusT))
+  , oReleaseTypeInfo :: FunPtr (Ptr OrtTypeInfoT -> IO ())
   , oReleaseEnv :: FunPtr (Ptr OrtEnvT -> IO ())
   , oReleaseStatus :: FunPtr (Ptr OrtStatusT -> IO ())
   , oReleaseMemoryInfo :: FunPtr (Ptr OrtMemoryInfoT -> IO ())
@@ -265,6 +280,10 @@ mkOps api =
     <*> apiSlot api slotCreateCpuMemoryInfo
     <*> apiSlot api slotAllocatorFree
     <*> apiSlot api slotGetAllocatorWithDefaultOptions
+    <*> apiSlot api slotSessionGetInputTypeInfo
+    <*> apiSlot api slotSessionGetOutputTypeInfo
+    <*> apiSlot api slotCastTypeInfoToTensorInfo
+    <*> apiSlot api slotReleaseTypeInfo
     <*> apiSlot api slotReleaseEnv
     <*> apiSlot api slotReleaseStatus
     <*> apiSlot api slotReleaseMemoryInfo
@@ -371,6 +390,71 @@ inputNames = namesOf "SessionGetInputName" oSessionGetInputCount oSessionGetInpu
 -- | The model's output names, in declaration order.
 outputNames :: Session -> IO [String]
 outputNames = namesOf "SessionGetOutputName" oSessionGetOutputCount oSessionGetOutputName
+
+-- | Shape and element type of one model input\/output, as declared by
+-- the model. @-1@ in 'tiShape' is a dynamic dimension (typically the
+-- batch axis); 'tiElementType' is the raw @ONNXTensorElementDataType@
+-- code (see 'Keel.Onnx.Raw.onnxElementFloat' and friends).
+data TensorInfo = TensorInfo
+  { tiShape :: [Int64]
+  , tiElementType :: Int
+  }
+  deriving (Eq, Show)
+
+infosOf
+  :: String
+  -> (OrtOps -> FunPtr (Ptr OrtSessionT -> Ptr CSize -> IO (Ptr OrtStatusT)))
+  -> (OrtOps -> FunPtr (Ptr OrtSessionT -> CSize -> Ptr (Ptr OrtTypeInfoT) -> IO (Ptr OrtStatusT)))
+  -> Session
+  -> IO [Maybe TensorInfo]
+infosOf ctx countF infoF (Session ort sess) = do
+  let ops = capOps ort
+  n <- alloca $ \out -> do
+    checkStatus ops (ctx <> "Count") =<< callPP_S (countF ops) sess out
+    peek out
+  mapM
+    ( \i ->
+        bracket
+          ( alloca $ \out -> do
+              checkStatus ops ctx =<< callPZP_S (infoF ops) sess i out
+              peek out
+          )
+          (callP_V (oReleaseTypeInfo ops))
+          $ \ti -> do
+            -- the cast result is a view into the TypeInfo (not released
+            -- separately); null means the input/output is not a tensor
+            shapeInfo <- alloca $ \out -> do
+              poke out nullPtr
+              checkStatus ops "CastTypeInfoToTensorInfo"
+                =<< callPP_S (oCastTypeInfoToTensorInfo ops) ti out
+              peek out
+            if shapeInfo == nullPtr
+              then pure Nothing
+              else do
+                ety <- alloca $ \out -> do
+                  checkStatus ops "GetTensorElementType"
+                    =<< callPP_S (oGetTensorElementType ops) shapeInfo out
+                  peek out
+                ndim <- alloca $ \out -> do
+                  checkStatus ops "GetDimensionsCount"
+                    =<< callPP_S (oGetDimensionsCount ops) shapeInfo out
+                  peek out
+                dims <- allocaArray (fromIntegral ndim) $ \out -> do
+                  checkStatus ops "GetDimensions"
+                    =<< callPPZ_S (oGetDimensions ops) shapeInfo out ndim
+                  peekArray (fromIntegral ndim) out
+                pure (Just (TensorInfo dims (fromIntegral (ety :: CInt))))
+    )
+    [0 .. n - 1]
+
+-- | Declared shape\/dtype of each input ('Nothing' for non-tensor
+-- inputs such as maps or sequences), in declaration order.
+inputInfos :: Session -> IO [Maybe TensorInfo]
+inputInfos = infosOf "SessionGetInputTypeInfo" oSessionGetInputCount oSessionGetInputTypeInfo
+
+-- | Declared shape\/dtype of each output, in declaration order.
+outputInfos :: Session -> IO [Maybe TensorInfo]
+outputInfos = infosOf "SessionGetOutputTypeInfo" oSessionGetOutputCount oSessionGetOutputTypeInfo
 
 -- ---------------------------------------------------------------------
 -- Inference

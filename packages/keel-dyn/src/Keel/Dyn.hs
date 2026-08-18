@@ -47,6 +47,7 @@ module Keel.Dyn
     Library
   , libraryPath
   , loadLibrary
+  , loadLibraryGlobal
   , closeLibrary
   , withLibrary
 

@@ -22,6 +22,7 @@ module Keel.Onnx.Raw
   , OrtMemoryInfoT
   , OrtAllocatorT
   , OrtTensorTypeAndShapeInfoT
+  , OrtTypeInfoT
 
     -- * Entry point
   , ortApiVersion
@@ -41,6 +42,10 @@ module Keel.Onnx.Raw
   , slotSessionGetOutputCount
   , slotSessionGetInputName
   , slotSessionGetOutputName
+  , slotSessionGetInputTypeInfo
+  , slotSessionGetOutputTypeInfo
+  , slotCastTypeInfoToTensorInfo
+  , slotReleaseTypeInfo
   , slotCreateTensorWithDataAsOrtValue
   , slotGetTensorMutableData
   , slotGetTensorElementType
@@ -104,6 +109,9 @@ data OrtAllocatorT
 -- | Opaque tag for @OrtTensorTypeAndShapeInfo@.
 data OrtTensorTypeAndShapeInfoT
 
+-- | Opaque tag for @OrtTypeInfo@.
+data OrtTypeInfoT
+
 -- | The @ORT_API_VERSION@ these slot indices were pinned against
 -- (v1.24.4). @GetApi(ortApiVersion)@ succeeds on any runtime >= 1.24
 -- (the table is append-only) and returns null on older ones.
@@ -134,6 +142,8 @@ slotGetErrorCode, slotGetErrorMessage, slotCreateEnv,
   slotCreateSessionFromArray, slotRun, slotCreateSessionOptions,
   slotSessionGetInputCount, slotSessionGetOutputCount,
   slotSessionGetInputName, slotSessionGetOutputName,
+  slotSessionGetInputTypeInfo, slotSessionGetOutputTypeInfo,
+  slotCastTypeInfoToTensorInfo, slotReleaseTypeInfo,
   slotCreateTensorWithDataAsOrtValue, slotGetTensorMutableData,
   slotGetTensorElementType, slotGetDimensionsCount, slotGetDimensions,
   slotGetTensorShapeElementCount, slotGetTensorTypeAndShape,
@@ -151,6 +161,10 @@ slotSessionGetInputCount = 30
 slotSessionGetOutputCount = 31
 slotSessionGetInputName = 36
 slotSessionGetOutputName = 37
+slotSessionGetInputTypeInfo = 33
+slotSessionGetOutputTypeInfo = 34
+slotCastTypeInfoToTensorInfo = 55
+slotReleaseTypeInfo = 98
 slotCreateTensorWithDataAsOrtValue = 49
 slotGetTensorMutableData = 51
 slotGetTensorElementType = 60
@@ -200,6 +214,10 @@ ortSlotTable =
   , ("ReleaseValue", slotReleaseValue)
   , ("ReleaseTensorTypeAndShapeInfo", slotReleaseTensorTypeAndShapeInfo)
   , ("ReleaseSessionOptions", slotReleaseSessionOptions)
+  , ("SessionGetInputTypeInfo", slotSessionGetInputTypeInfo)
+  , ("SessionGetOutputTypeInfo", slotSessionGetOutputTypeInfo)
+  , ("CastTypeInfoToTensorInfo", slotCastTypeInfoToTensorInfo)
+  , ("ReleaseTypeInfo", slotReleaseTypeInfo)
   ]
 
 -- Enum values (onnxruntime_c_api.h, gate-verified)

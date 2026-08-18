@@ -37,7 +37,9 @@ jobs:
 
       - name: Install OpenBLAS (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libopenblas0 libopenblas-dev
+        run: |
+          sudo apt-get update && sudo apt-get install -y libopenblas0 libopenblas-dev
+          echo "KEEL_OPENBLAS=$(ldconfig -p | awk '/libopenblas\.so/ {print $NF; exit}')" >> "$GITHUB_ENV"
 
       - name: Install OpenBLAS (macOS)
         if: runner.os == 'macOS'

@@ -43,6 +43,10 @@ size_t keel_ort_slot_gate(size_t* out) {
   SLOT(ReleaseValue);
   SLOT(ReleaseTensorTypeAndShapeInfo);
   SLOT(ReleaseSessionOptions);
+  SLOT(SessionGetInputTypeInfo);
+  SLOT(SessionGetOutputTypeInfo);
+  SLOT(CastTypeInfoToTensorInfo);
+  SLOT(ReleaseTypeInfo);
 #undef SLOT
   return i;
 }

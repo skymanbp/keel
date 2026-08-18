@@ -8,6 +8,7 @@ module Keel.Dyn.Platform
   , libraryPath
   , DynError (..)
   , loadLibrary
+  , loadLibraryGlobal
   , closeLibrary
   , withLibrary
   , resolveSym
@@ -88,6 +89,12 @@ loadLibrary path = withCWString path $ \wpath -> do
       code <- c_GetLastError
       pure (Left (LibraryNotFound path ("Win32 error " <> show code)))
     else pure (Right (Library h path))
+
+-- | On Windows this is identical to 'loadLibrary': PE imports are
+-- resolved per-module from the DLL's import table, so there is no
+-- POSIX-style global symbol namespace to opt into.
+loadLibraryGlobal :: FilePath -> IO (Either DynError Library)
+loadLibraryGlobal = loadLibrary
 
 -- | Release the OS handle. 'FunPtr's resolved from this 'Library' must not
 -- be called afterwards.
