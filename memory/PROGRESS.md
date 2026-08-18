@@ -1,13 +1,13 @@
 # PROGRESS — HSDS
 
-*Generated: 2026-08-18T10:08:58* · via stop · D:\Projects\HSDS
+*Generated: 2026-08-18T10:26:15* · via stop · D:\Projects\HSDS
 
 > SINGLE SOURCE OF TRUTH for session handoff. Always full-rewrite from SQLite
 > table `progress`. **Never append. Never patch by hand.**
 
 ## 0. Session
 
-🟢 **Current session**: `#f627a4e5`  ·  started `2026-08-18 02:06`  ·  last write `2026-08-18 10:08`  ·  trigger `stop`
+🟢 **Current session**: `#f627a4e5`  ·  started `2026-08-18 02:06`  ·  last write `2026-08-18 10:26`  ·  trigger `stop`
 
 > If your Claude session ID does NOT start with `f627a4e5`, this row was written by a different session — treat the §3 todos / §6 files as that session's work, not yours.
 
@@ -51,16 +51,21 @@ keel-dyn L1 complete: Windows/POSIX dual-platform runtime dynamic loader (LoadLi
 
 **edit**:
   - `C:\Users\skyma\AppData\Local\Temp\claude\d--Projects-HSDS\f627a4e5-ac32-4940-bb23-883811ffb134\scratchpad\plan_refined.json`
-  - `d:\Projects\HSDS\packages\keel-onnx\keel-onnx.cabal`
-  - `d:\Projects\HSDS\packages\keel-onnx\test\Demo.hs`
-  - `d:\Projects\HSDS\.github\workflows\ci.yml`
-  - `d:\Projects\HSDS\packages\keel-linalg\src\Keel\Linalg\Backend.hs`
+  - `d:\Projects\HSDS\README.md`
+  - `d:\Projects\HSDS\docs\tutorials\04-dataframe-linalg.md`
+  - `d:\Projects\HSDS\docs\tutorials\03-onnx-inference.md`
+  - `d:\Projects\HSDS\docs\tutorials\02-python-interop.md`
+  - `d:\Projects\HSDS\docs\tutorials\01-runtime-loading.md`
+  - `d:\Projects\HSDS\packages\keel\test\BridgeTest.hs`
+  - `d:\Projects\HSDS\packages\keel\src\Keel\Bridge.hs`
+  - `d:\Projects\HSDS\packages\keel\keel.cabal`
 
 **read**:
+  - `C:\Users\skyma\AppData\Local\Temp\claude\d--Projects-HSDS\f627a4e5-ac32-4940-bb23-883811ffb134\scratchpad\dataframe-core-2.4.0.0\src-internal\DataFrame\Internal\DataFrame.hs`
+  - `C:\Users\skyma\AppData\Local\Temp\claude\d--Projects-HSDS\f627a4e5-ac32-4940-bb23-883811ffb134\scratchpad\dataframe-core-2.4.0.0\src-internal\DataFrame\Internal\Column.hs`
+  - `C:\Users\skyma\AppData\Local\Temp\claude\d--Projects-HSDS\f627a4e5-ac32-4940-bb23-883811ffb134\tasks\b0ibiphnn.output`
   - `C:\Users\skyma\AppData\Local\Temp\claude\d--Projects-HSDS\f627a4e5-ac32-4940-bb23-883811ffb134\tasks\be55q9fnw.output`
   - `d:\Projects\HSDS\memory\PROGRESS.md`
-  - `d:\Projects\HSDS\memory\PLAN.md`
-  - `C:\Users\skyma\AppData\Local\Temp\claude\d--Projects-HSDS\f627a4e5-ac32-4940-bb23-883811ffb134\tasks\bk8p8zd1z.output`
 
 ## 7. Pre-compact Transcript Pointer
 

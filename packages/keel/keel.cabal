@@ -20,7 +20,14 @@ author:             Zhe Zhang
 maintainer:         Zhe Zhang
 category:           Data Science
 build-type:         Simple
+homepage:           https://github.com/skymanbp/keel
+bug-reports:        https://github.com/skymanbp/keel/issues
+extra-doc-files:    CHANGELOG.md
 tested-with:        GHC ==9.10.3 || ==9.12.4 || ==9.14.1
+
+source-repository head
+    type:     git
+    location: https://github.com/skymanbp/keel
 
 common warnings
     ghc-options:      -Wall
@@ -40,10 +47,10 @@ library
         dataframe-core >=2.4 && <2.5,
         directory >=1.3 && <1.4,
         filepath >=1.4 && <1.6,
-        keel-abi,
-        keel-dyn,
-        keel-linalg,
-        keel-onnx,
+        keel-abi >=0.1 && <0.2,
+        keel-dyn >=0.1 && <0.2,
+        keel-linalg >=0.1 && <0.2,
+        keel-onnx >=0.1 && <0.2,
         process >=1.6 && <1.7,
         text >=2.0 && <2.2,
         vector >=0.13 && <0.14

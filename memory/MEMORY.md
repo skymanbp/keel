@@ -16,12 +16,13 @@
   this index gets regenerated automatically.
 -->
 
-*Updated: 2026-08-18 10:08*  |  Sessions: 2  |  Memories: 67  |  Topics: 0
+*Updated: 2026-08-18 10:26*  |  Sessions: 2  |  Memories: 71  |  Topics: 0
 
 ## Memory Distribution
 
 - `roadmap`: 2
 - `haskell_ecosystem`: 2
+- `haskell_dataframes`: 2
 - `architecture`: 2
 - `windows_test_bugs`: 1
 - `user_decisions`: 1
@@ -41,19 +42,18 @@
 - `hmatrix_install`: 1
 - `hasktorch_status`: 1
 - `hasktorch_ghc_compat`: 1
+- `haskell_tooling`: 1
 - `haskell_research`: 1
 - `haskell_production`: 1
 - `haskell_packages`: 1
 - `haskell_numeric`: 1
+- `haskell_ml`: 1
 - `haskell_libraries`: 1
 - `haskell_dataframe`: 1
-- `haskell-dataframe`: 1
-- `ghc_versions`: 1
-- `fork_structure`: 1
 
 ## By Category
 
-- `result`: 35 entries  (avg importance 3.6)
+- `result`: 39 entries  (avg importance 3.6)
 - `note`: 12 entries  (avg importance 2.9)
 - `decision`: 7 entries  (avg importance 4.4)
 - `config`: 4 entries  (avg importance 3.5)

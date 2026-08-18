@@ -19,7 +19,14 @@ author:             Zhe Zhang
 maintainer:         Zhe Zhang
 category:           Math, Numeric
 build-type:         Simple
+homepage:           https://github.com/skymanbp/keel
+bug-reports:        https://github.com/skymanbp/keel/issues
+extra-doc-files:    CHANGELOG.md
 tested-with:        GHC ==9.10.3 || ==9.12.4 || ==9.14.1
+
+source-repository head
+    type:     git
+    location: https://github.com/skymanbp/keel
 
 common warnings
     ghc-options:      -Wall
@@ -33,7 +40,7 @@ library
     hs-source-dirs:   src
     build-depends:
         base >=4.20 && <4.23,
-        keel-dyn,
+        keel-dyn >=0.1 && <0.2,
         vector >=0.13 && <0.14
 
 test-suite keel-linalg-smoke
@@ -44,8 +51,8 @@ test-suite keel-linalg-smoke
     hs-source-dirs:   test
     build-depends:
         base,
-        keel-dyn,
-        keel-linalg,
+        keel-dyn >=0.1 && <0.2,
+        keel-linalg >=0.1 && <0.2,
         process >=1.6 && <1.7,
         vector
 
@@ -57,6 +64,6 @@ test-suite keel-linalg-oracle
     hs-source-dirs:   test
     build-depends:
         base,
-        keel-linalg,
+        keel-linalg >=0.1 && <0.2,
         process >=1.6 && <1.7,
         vector

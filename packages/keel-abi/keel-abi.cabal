@@ -18,7 +18,14 @@ author:             Zhe Zhang
 maintainer:         Zhe Zhang
 category:           Foreign, Data
 build-type:         Simple
+homepage:           https://github.com/skymanbp/keel
+bug-reports:        https://github.com/skymanbp/keel/issues
+extra-doc-files:    CHANGELOG.md
 tested-with:        GHC ==9.10.3 || ==9.12.4 || ==9.14.1
+
+source-repository head
+    type:     git
+    location: https://github.com/skymanbp/keel
 
 common warnings
     ghc-options:      -Wall
@@ -64,8 +71,8 @@ test-suite keel-abi-pyarrow
     ghc-options:      -threaded
     build-depends:
         base,
-        keel-abi,
-        keel-dyn,
+        keel-abi >=0.1 && <0.2,
+        keel-dyn >=0.1 && <0.2,
         process >=1.6 && <1.7
 
 test-suite keel-abi-dlpack
@@ -77,6 +84,6 @@ test-suite keel-abi-dlpack
     ghc-options:      -threaded
     build-depends:
         base,
-        keel-abi,
-        keel-dyn,
+        keel-abi >=0.1 && <0.2,
+        keel-dyn >=0.1 && <0.2,
         process >=1.6 && <1.7

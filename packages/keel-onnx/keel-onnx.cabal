@@ -19,7 +19,17 @@ author:             Zhe Zhang
 maintainer:         Zhe Zhang
 category:           Machine Learning, Foreign
 build-type:         Simple
+homepage:           https://github.com/skymanbp/keel
+bug-reports:        https://github.com/skymanbp/keel/issues
+extra-doc-files:    CHANGELOG.md
+extra-source-files:
+    test/cbits/vendor/onnxruntime_c_api.h
+    test/cbits/vendor/onnxruntime_ep_c_api.h
 tested-with:        GHC ==9.10.3 || ==9.12.4 || ==9.14.1
+
+source-repository head
+    type:     git
+    location: https://github.com/skymanbp/keel
 
 common warnings
     ghc-options:      -Wall
@@ -34,7 +44,7 @@ library
     build-depends:
         base >=4.20 && <4.23,
         bytestring >=0.11 && <0.13,
-        keel-dyn,
+        keel-dyn >=0.1 && <0.2,
         vector >=0.13 && <0.14
 
 test-suite keel-onnx-slots
@@ -59,6 +69,6 @@ test-suite keel-onnx-demo
         base,
         bytestring,
         filepath,
-        keel-onnx,
+        keel-onnx >=0.1 && <0.2,
         process >=1.6 && <1.7,
         vector
