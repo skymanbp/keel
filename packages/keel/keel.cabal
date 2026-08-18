@@ -1,0 +1,56 @@
+cabal-version:      3.0
+name:               keel
+version:            0.1.0.0
+synopsis:           Umbrella for the keel capability floor: doctor, setup
+description:
+    The thin seam over the keel capability packages (keel-dyn, keel-abi,
+    keel-onnx, keel-linalg):
+    .
+    * @keel doctor@ — reports exactly which native capabilities resolve
+      on this machine, which do not, and the one command that fixes
+      each;
+    * @keel setup@ — checksum-pinned installation of native runtimes
+      into the per-user keel directory (in progress).
+    .
+    keel is deliberately NOT a dataframe, a schema layer, an estimator
+    protocol, or a numeric prelude — see the project README.
+license:            MIT
+license-file:       LICENSE
+author:             Zhe Zhang
+maintainer:         Zhe Zhang
+category:           Data Science
+build-type:         Simple
+tested-with:        GHC ==9.10.3 || ==9.12.4 || ==9.14.1
+
+common warnings
+    ghc-options:      -Wall
+    default-language: GHC2021
+
+library
+    import:           warnings
+    exposed-modules:  Keel.Doctor
+    hs-source-dirs:   src
+    build-depends:
+        base >=4.20 && <4.23,
+        keel-abi,
+        keel-dyn,
+        keel-linalg,
+        keel-onnx
+
+executable keel
+    import:           warnings
+    main-is:          Main.hs
+    hs-source-dirs:   app
+    ghc-options:      -threaded
+    build-depends:
+        base,
+        keel
+
+test-suite keel-doctor-test
+    import:           warnings
+    type:             exitcode-stdio-1.0
+    main-is:          DoctorTest.hs
+    hs-source-dirs:   test
+    build-depends:
+        base,
+        keel

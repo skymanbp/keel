@@ -1,5 +1,7 @@
 # keel
 
+[![ci](https://github.com/skymanbp/keel/actions/workflows/ci.yml/badge.svg)](https://github.com/skymanbp/keel/actions/workflows/ci.yml)
+
 **keel is not a new dataframe.**
 
 keel is a native-capability and interop floor for Haskell data science. The
@@ -39,11 +41,20 @@ upstream-repo work outside this project.
 
 ## Status
 
-Pre-release. **P0 (falsification) passed 2026-08-18**: the dataframe stack
-builds on Windows 11 locally and on CI —
-[docs/p0/BUILD-REPORT.md](docs/p0/BUILD-REPORT.md). Current phase: local
-development of the four capability packages ([PLAN.md](PLAN.md) §5). Research
-provenance for every claim: [docs/research/](docs/research/).
+Pre-release, not yet on Hackage. **P0 (falsification) passed 2026-08-18**: the
+dataframe stack builds on Windows 11 locally and on CI —
+[docs/p0/BUILD-REPORT.md](docs/p0/BUILD-REPORT.md).
+
+The four capability packages are implemented and pass their conformance
+suites on Windows: pyarrow round-trips the Arrow C Data and Stream
+Interfaces in both directions in-process; numpy round-trips DLPack v1
+tensors both ways; every keel-linalg driver is cross-checked against
+numpy/LAPACK to 1e-10; and the headline demo — train in scikit-learn,
+export with skl2onnx, run in Haskell — agrees with python's own
+onnxruntime to 1e-6. The Linux/macOS × GHC {9.10, 9.12, 9.14} CI matrix
+is being brought up now; the `keel` umbrella (doctor, setup, tutorials)
+is in progress ([PLAN.md](PLAN.md) §5). Research provenance for every
+claim: [docs/research/](docs/research/).
 
 ## License
 
