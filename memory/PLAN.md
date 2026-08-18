@@ -23,10 +23,10 @@ Ship a Windows-first capability and interop floor for Haskell data science, neve
 
 ## Steps
 
-1. [ ] **Donate Windows + macOS CI workflow to DataHaskell/dataframe as a PR**  ← ACTIVE — P0 wk1-3; cheapest falsification of the Windows thesis
+1. [!] **Donate Windows + macOS CI workflow to DataHaskell/dataframe as a PR** — PAUSED by owner 2026-08-18: fork CI evidence complete (build 4/4 green; Windows tests red on 3 real upstream bugs). No PR/issues until owner instructs.
 2. [x] **Build the full dataframe stack on Windows 11 and publish the result honestly** — PASS 2026-08-18: cabal.project.ci rc=0 (217s warm) + Hackage releases rc=0 + smoke ok, GHC 9.12.4; first-run fail was MAX_PATH 262>260 (environmental, proven). Report: docs/p0/BUILD-REPORT.md
-3. [ ] **Publish the positioning Discourse post and the repo hygiene files** — 'this is not a new dataframe'; MIT, GOVERNANCE, CONTRIBUTING
-4. [ ] **Rule on the P0 hard gate before writing any library code** — Fail = Q1 contingency: narrow to the 3 independent packages
+3. [ ] **Publish the positioning Discourse post and the repo hygiene files**  ← ACTIVE — 'this is not a new dataframe'; MIT, GOVERNANCE, CONTRIBUTING
+4. [ ] **Rule on the P0 hard gate before writing any library code** — Build half of the gate PASSED (local + CI). PR half deferred with step #1 pause.
 5. [ ] **Ship keel-dyn 0.1 to Hackage as a standalone runtime dynamic loader** — P1; product name DECIDED 2026-08-17: keel (Hackage-free, verified)
 6. [ ] **Ship keel-abi 0.1: Arrow C Data/Stream both ways plus DLPack exchange** — P2; offer the inbound half to dataframe-core as a PR
 7. [ ] **Recruit one design partner who actually needs ONNX inference in Haskell** — Q10 precondition for P3; if none, P5 moves up
@@ -43,8 +43,8 @@ Incumbent DataHaskell/dataframe (bus factor 1) owns the pandas/sklearn/plot tier
 ## Status
 
 - Progress: 1/12 steps done
-- Active step: #1
-- Last refined: 2026-08-17T23:13:50 (plan-refiner)
-- Last guardian check: 2026-08-17T22:58:56
+- Active step: #3
+- Last refined: 2026-08-17T23:47:50 (plan-refiner)
+- Last guardian check: 2026-08-17T23:28:38
 - Edits since last check: 0
 - Turns since last check: 0

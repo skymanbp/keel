@@ -51,9 +51,45 @@ a 31-character base (`--builddir`) made run 1b pass with zero other changes.
 - **For keel:** same line goes in our own docs; `keel doctor` gets a
   path-length check.
 
+## Fork CI results (2026-08-18)
+
+Workflow `CI (Windows + macOS)` (commit `6c0fe52` on fork `skymanbp/dataframe`,
+atop upstream `3168069`), run 32095552668, matrix {windows-latest, macos-14} ×
+GHC {9.6.7, 9.12.2}:
+
+| Lane | Build | Test |
+|---|---|---|
+| macos-14 / 9.6.7 | ✅ | ✅ |
+| macos-14 / 9.12.2 | ✅ | ✅ |
+| windows-latest / 9.6.7 | ✅ | ❌ (same 3 cases as below) |
+| windows-latest / 9.12.2 | ✅ | ❌ |
+
+**Build is green on all four lanes.** The Windows test failures are an
+identical set on both GHC versions — OS-determined, not compiler-determined —
+and all three are genuine upstream Windows-portability bugs that Linux-only CI
+structurally cannot catch:
+
+1. `toCsv_roundTrip` (dataframe main suite, 2 errors): test hardcodes the Unix
+   path `/tmp/dataframe_test_toCsv_roundtrip.csv` → `withFile: does not exist`
+   on Windows. Mechanical fix (`getTemporaryDirectory`).
+2. `fast_roundtrip_newlines`, `fast_roundtrip_quotes_and_newlines`
+   (dataframe-fastcsv suite): CRLF newline handling — expected/actual differ by
+   a few characters of width, consistent with text-mode `\r\n` translation
+   colliding with byte-offset assumptions.
+3. `typed_quote_spans_boundary` (main suite): quote spanning a chunk boundary,
+   same newline/offset class.
+
+Suites `learn-internal`, `packed-text` and `dataframe-parsing` pass on Windows.
+
+**P0 gate reading:** the build half of the Windows thesis is confirmed on both
+the local machine and CI; the discovered test failures are the strongest
+possible argument *for* the Windows CI lanes. Upstream submission (PR/issues)
+is **paused by owner decision (2026-08-18)** pending further instruction.
+
 ## Reproduction
 
 Logs: `p0_build.log` (runs 1a + 2), `p0_source_rerun.log` (run 1b) — archived
 from the session scratchpad. Smoke project: a fresh cabal executable depending
 on the four Hackage releases above, `main = putStrLn "keel p0 smoke ok"` plus
-imports forcing the closure.
+imports forcing the closure. Fork CI evidence:
+https://github.com/skymanbp/dataframe/actions/runs/32095552668

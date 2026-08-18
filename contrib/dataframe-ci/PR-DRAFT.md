@@ -25,11 +25,20 @@ Context: I'm verifying/using the stack on Windows 11 and would like the
 Windows story to be CI-enforced rather than anecdotal. I ran this workflow on
 a fork first: <FORK-RUN-LINK — fill in after the fork run is green>.
 
+**Status: PAUSED by owner (2026-08-18) — do not submit anything upstream
+(PR, issues, comments) until the owner says so.**
+
 **Pre-submission checklist (all must be true before opening the PR):**
-- [ ] Workflow ran green (or with an honest, explained red) on our fork
+- [x] Workflow ran on our fork: run 32095552668 — build 4/4 green; macOS
+      tests 2/2 green; Windows tests red on 3 named upstream portability bugs
+      (hardcoded /tmp; CRLF roundtrip ×2; quote-spans-boundary) — see
+      docs/p0/BUILD-REPORT.md "Fork CI results"
 - [x] Local Windows 11 build of the same targets recorded in
       docs/p0/BUILD-REPORT.md — PASS (cabal.project.ci rc=0 in 217s warm,
       GHC 9.12.4, upstream @ 3168069; sole first-run failure was MAX_PATH,
       proven environmental)
-- [ ] Fork-run link filled into the body above
+- [x] Fork-run link:
+      https://github.com/skymanbp/dataframe/actions/runs/32095552668
+- [ ] Owner decides the red-lane strategy (soft-fail + issues / fix-first /
+      hard-red) — options analysed, decision deferred
 - [ ] Owner (Zhe Zhang) approved submission from their GitHub account

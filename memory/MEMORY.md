@@ -16,7 +16,7 @@
   this index gets regenerated automatically.
 -->
 
-*Updated: 2026-08-17 23:08*  |  Sessions: 0  |  Memories: 22  |  Topics: 0
+*Updated: 2026-08-17 23:29*  |  Sessions: 0  |  Memories: 25  |  Topics: 0
 
 ## Memory Distribution
 
@@ -25,14 +25,17 @@
 - `ml_standards`: 1
 - `ihaskell_windows`: 1
 - `hasktorch_status`: 1
+- `haskell_research`: 1
 - `haskell_ecosystem`: 1
 - `haskell_dataframe`: 1
+- `haskell-dataframe`: 1
 - `ghc_versions`: 1
 - `ecosystem_landscape`: 1
 - `design_inspiration`: 1
 - `dependency_strategy`: 1
 - `data_interchange`: 1
 - `build_success`: 1
+- `build-fix`: 1
 - `Hasktorch_status`: 1
 - `Haskell_ML_ecosystem`: 1
 - `Haskell packages`: 1
@@ -45,9 +48,10 @@
 
 ## By Category
 
-- `result`: 14 entries  (avg importance 3.3)
-- `note`: 5 entries  (avg importance 3.2)
+- `result`: 15 entries  (avg importance 3.3)
+- `note`: 6 entries  (avg importance 3.0)
 - `arch`: 1 entries  (avg importance 5.0)
+- `config`: 1 entries  (avg importance 3.0)
 - `decision`: 1 entries  (avg importance 5.0)
 - `task`: 1 entries  (avg importance 3.0)
 
