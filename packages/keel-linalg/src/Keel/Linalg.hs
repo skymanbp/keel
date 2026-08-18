@@ -5,9 +5,18 @@
 -- immutable-pin discipline: no global state, no backend swapping under
 -- a pure API, results attributable to exactly one backend build.
 --
--- Matrices are dense, row-major, compact (leading dimension = column
--- count). Dimensions are validated eagerly; a mismatch throws
--- 'DimensionMismatch' before any foreign call.
+-- Conventions, uniform across all drivers:
+--
+-- * matrices are dense, row-major, compact (leading dimension = column
+--   count); inputs are copied, never overwritten;
+-- * dimension mismatches throw 'DimensionMismatch' before any foreign
+--   call; a negative LAPACK @info@ throws 'LapackBadArgument' (a bug in
+--   these bindings, not in your data);
+-- * data-dependent failure (singular \/ not positive definite \/ rank
+--   deficient) is @Left info@ with LAPACK's 1-based index semantics —
+--   these are results, not exceptions;
+-- * every driver here requires the backend; none has a pure-Haskell
+--   fallback.
 module Keel.Linalg
   ( -- * Backend
     Backend
@@ -17,25 +26,39 @@ module Keel.Linalg
   , openBackendWith
   , closeBackend
 
-    -- * Errors
+    -- * Errors and modes
   , LinalgError (..)
+  , Transpose (..)
+  , Uplo (..)
+  , Diag (..)
 
-    -- * Level 1
+    -- * BLAS level 1
   , ddot
 
-    -- * Level 3
-  , Transpose (..)
+    -- * BLAS level 3
   , dgemm
 
-    -- * LAPACK drivers
+    -- * Linear systems
   , dgesv
+  , dposv
+  , dtrtrs
+
+    -- * Least squares
+  , dgels
+
+    -- * Factor \/ invert
+  , dgetrf
+  , dgetri
+  , dpotrf
+  , dpotri
   ) where
 
 import Control.Exception (Exception, throwIO)
 import Control.Monad (unless)
 import Data.Vector.Storable qualified as VS
 import Data.Vector.Storable.Mutable qualified as VSM
-import Foreign.C.Types (CInt (..))
+import Foreign.C.String (castCharToCChar)
+import Foreign.C.Types (CChar (..), CInt (..))
 import Foreign.Ptr (FunPtr, Ptr)
 
 import Keel.Dyn (capOps)
@@ -57,13 +80,52 @@ instance Exception LinalgError
 data Transpose = NoTrans | Trans
   deriving (Eq, Show)
 
--- CBLAS enum values (frozen ABI, cblas.h)
-cblasRowMajor :: CInt
+-- | Which triangle of a symmetric\/triangular argument is stored\/read.
+data Uplo = Upper | Lower
+  deriving (Eq, Show)
+
+-- | Whether a triangular matrix has an implicit unit diagonal.
+data Diag = NonUnit | UnitDiag
+  deriving (Eq, Show)
+
+-- CBLAS enum values and LAPACKE char modes (frozen ABI: cblas.h, lapacke.h)
+cblasRowMajor, lapackRowMajor :: CInt
 cblasRowMajor = 101
+lapackRowMajor = 101
 
 transToC :: Transpose -> CInt
 transToC NoTrans = 111
 transToC Trans = 112
+
+transChar :: Transpose -> CChar
+transChar NoTrans = castCharToCChar 'N'
+transChar Trans = castCharToCChar 'T'
+
+uploChar :: Uplo -> CChar
+uploChar Upper = castCharToCChar 'U'
+uploChar Lower = castCharToCChar 'L'
+
+diagChar :: Diag -> CChar
+diagChar NonUnit = castCharToCChar 'N'
+diagChar UnitDiag = castCharToCChar 'U'
+
+-- Shared validation / info interpretation ------------------------------
+
+checkDim :: String -> String -> Int -> Int -> IO ()
+checkDim ctx what got want =
+  unless (got == want) . throwIO . DimensionMismatch $
+    ctx <> ": " <> what <> " has " <> show got <> " elements, want " <> show want
+
+-- Positive info = Left (data condition); zero = run the continuation;
+-- negative = bindings bug, thrown.
+interpretInfo :: String -> CInt -> IO a -> IO (Either Int a)
+interpretInfo ctx info onOk = case compare info 0 of
+  EQ -> Right <$> onOk
+  GT -> pure (Left (fromIntegral info))
+  LT -> throwIO (LapackBadArgument ctx (negate (fromIntegral info)))
+
+-- ---------------------------------------------------------------------
+-- BLAS
 
 foreign import ccall safe "dynamic"
   callDdot
@@ -90,8 +152,7 @@ foreign import ccall safe "dynamic"
 -- | Dot product @x . y@ (@cblas_ddot@, unit strides).
 ddot :: Backend -> VS.Vector Double -> VS.Vector Double -> IO Double
 ddot be x y = do
-  unless (VS.length x == VS.length y) . throwIO . DimensionMismatch $
-    "ddot: lengths " <> show (VS.length x) <> " /= " <> show (VS.length y)
+  checkDim "ddot" "y" (VS.length y) (VS.length x)
   VS.unsafeWith x $ \px ->
     VS.unsafeWith y $ \py ->
       callDdot (opDdot (capOps be)) (fromIntegral (VS.length x)) px 1 py 1
@@ -112,10 +173,8 @@ dgemm
   -> VS.Vector Double -- ^ B
   -> IO (VS.Vector Double)
 dgemm be ta tb m n k alpha a b = do
-  unless (VS.length a == m * k) . throwIO . DimensionMismatch $
-    "dgemm: A has " <> show (VS.length a) <> " elements, want m*k = " <> show (m * k)
-  unless (VS.length b == k * n) . throwIO . DimensionMismatch $
-    "dgemm: B has " <> show (VS.length b) <> " elements, want k*n = " <> show (k * n)
+  checkDim "dgemm" "A" (VS.length a) (m * k)
+  checkDim "dgemm" "B" (VS.length b) (k * n)
   let lda = fromIntegral (if ta == NoTrans then k else m)
       ldb = fromIntegral (if tb == NoTrans then n else k)
       ldc = fromIntegral n
@@ -128,6 +187,9 @@ dgemm be ta tb m n k alpha a b = do
           (fromIntegral m) (fromIntegral n) (fromIntegral k)
           alpha pa lda pb ldb 0 pc ldc
   VS.unsafeFreeze c
+
+-- ---------------------------------------------------------------------
+-- Linear systems
 
 foreign import ccall safe "dynamic"
   callDgesv
@@ -144,12 +206,37 @@ foreign import ccall safe "dynamic"
     -> Ptr Double -> CInt
     -> IO CInt
 
+foreign import ccall safe "dynamic"
+  callDposv
+    :: FunPtr
+         (  CInt -> CChar -> CInt -> CInt
+         -> Ptr Double -> CInt
+         -> Ptr Double -> CInt
+         -> IO CInt
+         )
+    -> CInt -> CChar -> CInt -> CInt
+    -> Ptr Double -> CInt
+    -> Ptr Double -> CInt
+    -> IO CInt
+
+foreign import ccall safe "dynamic"
+  callDtrtrs
+    :: FunPtr
+         (  CInt -> CChar -> CChar -> CChar
+         -> CInt -> CInt
+         -> Ptr Double -> CInt
+         -> Ptr Double -> CInt
+         -> IO CInt
+         )
+    -> CInt -> CChar -> CChar -> CChar
+    -> CInt -> CInt
+    -> Ptr Double -> CInt
+    -> Ptr Double -> CInt
+    -> IO CInt
+
 -- | Solve @A X = B@ for square @A@ via LU with partial pivoting
--- (@LAPACKE_dgesv@). @A@ is @n x n@, @B@ is @n x nrhs@, both row-major
--- compact; inputs are copied, not overwritten. @Left i@ reports exact
--- singularity detected at @U(i,i)@ (1-based) — a data condition, not an
--- exception. This driver requires the backend; there is no pure-Haskell
--- fallback.
+-- (@LAPACKE_dgesv@). @A@ is @n x n@, @B@ is @n x nrhs@. @Left i@:
+-- exactly singular, detected at @U(i,i)@.
 dgesv
   :: Backend
   -> Int -- ^ n
@@ -158,25 +245,221 @@ dgesv
   -> VS.Vector Double -- ^ B
   -> IO (Either Int (VS.Vector Double))
 dgesv be n nrhs a b = do
-  unless (VS.length a == n * n) . throwIO . DimensionMismatch $
-    "dgesv: A has " <> show (VS.length a) <> " elements, want n*n = " <> show (n * n)
-  unless (VS.length b == n * nrhs) . throwIO . DimensionMismatch $
-    "dgesv: B has " <> show (VS.length b) <> " elements, want n*nrhs = " <> show (n * nrhs)
-  aCopy <- VS.thaw a
-  bCopy <- VS.thaw b
+  checkDim "dgesv" "A" (VS.length a) (n * n)
+  checkDim "dgesv" "B" (VS.length b) (n * nrhs)
+  aC <- VS.thaw a
+  bC <- VS.thaw b
   ipiv <- VSM.new n :: IO (VSM.IOVector CInt)
   info <-
-    VSM.unsafeWith aCopy $ \pa ->
-      VSM.unsafeWith bCopy $ \pb ->
+    VSM.unsafeWith aC $ \pa ->
+      VSM.unsafeWith bC $ \pb ->
         VSM.unsafeWith ipiv $ \pp ->
           callDgesv (opDgesv (capOps be))
             lapackRowMajor (fromIntegral n) (fromIntegral nrhs)
             pa (fromIntegral n) pp pb (fromIntegral nrhs)
-  case compare info 0 of
-    EQ -> Right <$> VS.unsafeFreeze bCopy
-    GT -> pure (Left (fromIntegral info))
-    LT -> throwIO (LapackBadArgument "dgesv" (negate (fromIntegral info)))
+  interpretInfo "dgesv" info (VS.unsafeFreeze bC)
 
--- LAPACK_ROW_MAJOR (lapacke.h, frozen ABI)
-lapackRowMajor :: CInt
-lapackRowMajor = 101
+-- | Solve @A X = B@ for symmetric positive-definite @A@ via Cholesky
+-- (@LAPACKE_dposv@); only the 'Uplo' triangle of @A@ is read. @Left i@:
+-- the leading minor of order @i@ is not positive definite.
+dposv
+  :: Backend
+  -> Uplo
+  -> Int -- ^ n
+  -> Int -- ^ nrhs
+  -> VS.Vector Double -- ^ A
+  -> VS.Vector Double -- ^ B
+  -> IO (Either Int (VS.Vector Double))
+dposv be uplo n nrhs a b = do
+  checkDim "dposv" "A" (VS.length a) (n * n)
+  checkDim "dposv" "B" (VS.length b) (n * nrhs)
+  aC <- VS.thaw a
+  bC <- VS.thaw b
+  info <-
+    VSM.unsafeWith aC $ \pa ->
+      VSM.unsafeWith bC $ \pb ->
+        callDposv (opDposv (capOps be))
+          lapackRowMajor (uploChar uplo) (fromIntegral n) (fromIntegral nrhs)
+          pa (fromIntegral n) pb (fromIntegral nrhs)
+  interpretInfo "dposv" info (VS.unsafeFreeze bC)
+
+-- | Solve @op(A) X = B@ for triangular @A@ (@LAPACKE_dtrtrs@); @A@ is
+-- read-only, only the 'Uplo' triangle is referenced ('UnitDiag' also
+-- skips the diagonal). @Left i@: @A(i,i)@ is exactly zero.
+dtrtrs
+  :: Backend
+  -> Uplo
+  -> Transpose -- ^ op(A)
+  -> Diag
+  -> Int -- ^ n
+  -> Int -- ^ nrhs
+  -> VS.Vector Double -- ^ A
+  -> VS.Vector Double -- ^ B
+  -> IO (Either Int (VS.Vector Double))
+dtrtrs be uplo ta diag n nrhs a b = do
+  checkDim "dtrtrs" "A" (VS.length a) (n * n)
+  checkDim "dtrtrs" "B" (VS.length b) (n * nrhs)
+  bC <- VS.thaw b
+  info <-
+    VS.unsafeWith a $ \pa ->
+      VSM.unsafeWith bC $ \pb ->
+        callDtrtrs (opDtrtrs (capOps be))
+          lapackRowMajor (uploChar uplo) (transChar ta) (diagChar diag)
+          (fromIntegral n) (fromIntegral nrhs)
+          pa (fromIntegral n) pb (fromIntegral nrhs)
+  interpretInfo "dtrtrs" info (VS.unsafeFreeze bC)
+
+-- ---------------------------------------------------------------------
+-- Least squares
+
+foreign import ccall safe "dynamic"
+  callDgels
+    :: FunPtr
+         (  CInt -> CChar
+         -> CInt -> CInt -> CInt
+         -> Ptr Double -> CInt
+         -> Ptr Double -> CInt
+         -> IO CInt
+         )
+    -> CInt -> CChar
+    -> CInt -> CInt -> CInt
+    -> Ptr Double -> CInt
+    -> Ptr Double -> CInt
+    -> IO CInt
+
+-- | Least squares \/ minimum norm via QR\/LQ (@LAPACKE_dgels@, no
+-- transpose): minimizes @||A X - B||@ when @m >= n@, finds the minimum
+-- norm solution when @m < n@. @A@ is @m x n@ full rank, @B@ is
+-- @m x nrhs@; the result is @n x nrhs@. @Left i@: @A@ is rank
+-- deficient (zero at diagonal element @i@ of the triangular factor).
+dgels
+  :: Backend
+  -> Int -- ^ m
+  -> Int -- ^ n
+  -> Int -- ^ nrhs
+  -> VS.Vector Double -- ^ A
+  -> VS.Vector Double -- ^ B
+  -> IO (Either Int (VS.Vector Double))
+dgels be m n nrhs a b = do
+  checkDim "dgels" "A" (VS.length a) (m * n)
+  checkDim "dgels" "B" (VS.length b) (m * nrhs)
+  let rows = max m n
+  aC <- VS.thaw a
+  -- LAPACKE wants B sized max(m,n) x nrhs: input in the first m rows,
+  -- solution comes back in the first n rows (row-major, ldb = nrhs,
+  -- so rows are contiguous and padding is a plain suffix)
+  bPad <- VSM.new (rows * nrhs)
+  VS.copy (VSM.slice 0 (m * nrhs) bPad) b
+  info <-
+    VSM.unsafeWith aC $ \pa ->
+      VSM.unsafeWith bPad $ \pb ->
+        callDgels (opDgels (capOps be))
+          lapackRowMajor (transChar NoTrans)
+          (fromIntegral m) (fromIntegral n) (fromIntegral nrhs)
+          pa (fromIntegral n) pb (fromIntegral nrhs)
+  interpretInfo "dgels" info (VS.take (n * nrhs) <$> VS.unsafeFreeze bPad)
+
+-- ---------------------------------------------------------------------
+-- Factor / invert
+
+foreign import ccall safe "dynamic"
+  callDgetrf
+    :: FunPtr (CInt -> CInt -> CInt -> Ptr Double -> CInt -> Ptr CInt -> IO CInt)
+    -> CInt -> CInt -> CInt -> Ptr Double -> CInt -> Ptr CInt -> IO CInt
+
+foreign import ccall safe "dynamic"
+  callDgetri
+    :: FunPtr (CInt -> CInt -> Ptr Double -> CInt -> Ptr CInt -> IO CInt)
+    -> CInt -> CInt -> Ptr Double -> CInt -> Ptr CInt -> IO CInt
+
+foreign import ccall safe "dynamic"
+  callDpotrf
+    :: FunPtr (CInt -> CChar -> CInt -> Ptr Double -> CInt -> IO CInt)
+    -> CInt -> CChar -> CInt -> Ptr Double -> CInt -> IO CInt
+
+foreign import ccall safe "dynamic"
+  callDpotri
+    :: FunPtr (CInt -> CChar -> CInt -> Ptr Double -> CInt -> IO CInt)
+    -> CInt -> CChar -> CInt -> Ptr Double -> CInt -> IO CInt
+
+-- | LU factorization with partial pivoting (@LAPACKE_dgetrf@) of an
+-- @m x n@ matrix: returns @(LU, ipiv)@ where @LU@ packs both factors
+-- and @ipiv@ (1-based) feeds 'dgetri'. @Left i@: @U(i,i)@ is exactly
+-- zero (the factor is dropped — downstream use would be invalid).
+dgetrf
+  :: Backend
+  -> Int -- ^ m
+  -> Int -- ^ n
+  -> VS.Vector Double -- ^ A
+  -> IO (Either Int (VS.Vector Double, VS.Vector CInt))
+dgetrf be m n a = do
+  checkDim "dgetrf" "A" (VS.length a) (m * n)
+  aC <- VS.thaw a
+  ipiv <- VSM.new (min m n) :: IO (VSM.IOVector CInt)
+  info <-
+    VSM.unsafeWith aC $ \pa ->
+      VSM.unsafeWith ipiv $ \pp ->
+        callDgetrf (opDgetrf (capOps be))
+          lapackRowMajor (fromIntegral m) (fromIntegral n)
+          pa (fromIntegral n) pp
+  interpretInfo "dgetrf" info
+    ((,) <$> VS.unsafeFreeze aC <*> VS.unsafeFreeze ipiv)
+
+-- | Matrix inverse from a 'dgetrf' factorization (@LAPACKE_dgetri@):
+-- pass the @n x n@ @LU@ and its @ipiv@. @Left i@: singular at
+-- @U(i,i)@.
+dgetri
+  :: Backend
+  -> Int -- ^ n
+  -> VS.Vector Double -- ^ LU from 'dgetrf'
+  -> VS.Vector CInt -- ^ ipiv from 'dgetrf'
+  -> IO (Either Int (VS.Vector Double))
+dgetri be n lu ipiv = do
+  checkDim "dgetri" "LU" (VS.length lu) (n * n)
+  checkDim "dgetri" "ipiv" (VS.length ipiv) n
+  luC <- VS.thaw lu
+  ipivC <- VS.thaw ipiv
+  info <-
+    VSM.unsafeWith luC $ \pa ->
+      VSM.unsafeWith ipivC $ \pp ->
+        callDgetri (opDgetri (capOps be))
+          lapackRowMajor (fromIntegral n) pa (fromIntegral n) pp
+  interpretInfo "dgetri" info (VS.unsafeFreeze luC)
+
+-- | Cholesky factorization (@LAPACKE_dpotrf@) of a symmetric
+-- positive-definite @n x n@ matrix; only the 'Uplo' triangle is read
+-- and only that triangle of the result is the factor (the other
+-- triangle keeps the input's bytes). @Left i@: leading minor of order
+-- @i@ not positive definite.
+dpotrf
+  :: Backend
+  -> Uplo
+  -> Int -- ^ n
+  -> VS.Vector Double -- ^ A
+  -> IO (Either Int (VS.Vector Double))
+dpotrf be uplo n a = do
+  checkDim "dpotrf" "A" (VS.length a) (n * n)
+  aC <- VS.thaw a
+  info <-
+    VSM.unsafeWith aC $ \pa ->
+      callDpotrf (opDpotrf (capOps be))
+        lapackRowMajor (uploChar uplo) (fromIntegral n) pa (fromIntegral n)
+  interpretInfo "dpotrf" info (VS.unsafeFreeze aC)
+
+-- | Inverse of a symmetric positive-definite matrix from its 'dpotrf'
+-- factor (@LAPACKE_dpotri@); only the 'Uplo' triangle of the result is
+-- the inverse. @Left i@: @factor(i,i)@ is exactly zero.
+dpotri
+  :: Backend
+  -> Uplo
+  -> Int -- ^ n
+  -> VS.Vector Double -- ^ Cholesky factor from 'dpotrf'
+  -> IO (Either Int (VS.Vector Double))
+dpotri be uplo n f = do
+  checkDim "dpotri" "factor" (VS.length f) (n * n)
+  fC <- VS.thaw f
+  info <-
+    VSM.unsafeWith fC $ \pa ->
+      callDpotri (opDpotri (capOps be))
+        lapackRowMajor (uploChar uplo) (fromIntegral n) pa (fromIntegral n)
+  interpretInfo "dpotri" info (VS.unsafeFreeze fC)

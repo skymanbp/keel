@@ -67,4 +67,50 @@ run be = do
         :: IO (Either LinalgError (Either Int (VS.Vector Double)))
   expect (either (const True) (const False) s3) "dgesv bad dims not rejected"
 
+  -- dposv on SPD [[4,2],[2,3]], b=[10,8]: x=[1.75,1.5] — near-equality,
+  -- the Cholesky pivot sqrt(2) is irrational so the result rounds
+  p1 <- unwrap "dposv" =<< dposv be Upper 2 1 (VS.fromList [4, 2, 2, 3]) (VS.fromList [10, 8])
+  expect (approxEq 1e-14 (VS.toList p1) [1.75, 1.5]) ("dposv: " <> show (VS.toList p1))
+
+  -- dposv rejects a non-positive-definite matrix
+  p2 <- dposv be Upper 2 1 (VS.fromList [-1, 0, 0, 1]) (VS.fromList [1, 1])
+  expect (either (const True) (const False) p2) "non-PD matrix not reported"
+
+  -- dtrtrs lower [[2,0],[1,1]] x = [2,3] -> x=[1,2] exact
+  t1 <- unwrap "dtrtrs" =<< dtrtrs be Lower NoTrans NonUnit 2 1
+          (VS.fromList [2, 0, 1, 1]) (VS.fromList [2, 3])
+  expect (VS.toList t1 == [1, 2]) ("dtrtrs: " <> show (VS.toList t1))
+
+  -- dgels overdetermined 3x2, consistent system -> x=[1,2]
+  g1 <- unwrap "dgels over" =<< dgels be 3 2 1
+          (VS.fromList [1, 0, 0, 1, 0, 0]) (VS.fromList [1, 2, 0])
+  expect (approxEq 1e-14 (VS.toList g1) [1, 2]) ("dgels over: " <> show (VS.toList g1))
+
+  -- dgels underdetermined 1x2 minimum norm: [[1,1]] x = [4] -> x=[2,2]
+  g2 <- unwrap "dgels under" =<< dgels be 1 2 1 (VS.fromList [1, 1]) (VS.fromList [4])
+  expect (approxEq 1e-14 (VS.toList g2) [2, 2]) ("dgels under: " <> show (VS.toList g2))
+
+  -- dgetrf + dgetri: inverse of diag(2,4) = diag(0.5,0.25) exact
+  (lu, piv) <- unwrap "dgetrf" =<< dgetrf be 2 2 (VS.fromList [2, 0, 0, 4])
+  inv <- unwrap "dgetri" =<< dgetri be 2 lu piv
+  expect (VS.toList inv == [0.5, 0, 0, 0.25]) ("dgetri: " <> show (VS.toList inv))
+
+  -- dgetrf reports exact singularity
+  f2 <- dgetrf be 2 2 (VS.fromList [1, 2, 2, 4])
+  expect (either (const True) (const False) f2) "dgetrf singularity not reported"
+
+  -- dpotrf lower of diag(4,9): factor diag(2,3), zeros preserved
+  ch <- unwrap "dpotrf" =<< dpotrf be Lower 2 (VS.fromList [4, 0, 0, 9])
+  expect (VS.toList ch == [2, 0, 0, 3]) ("dpotrf: " <> show (VS.toList ch))
+
+  -- dpotri from that factor: inverse diagonal [0.25, 1/9]
+  pin <- unwrap "dpotri" =<< dpotri be Lower 2 ch
+  expect (VS.head pin == 0.25 && abs (VS.last pin - 1 / 9) < 1e-15)
+    ("dpotri: " <> show (VS.toList pin))
+
   putStrLn "keel-linalg-smoke: all checks passed against a real OpenBLAS"
+  where
+    unwrap :: String -> Either Int a -> IO a
+    unwrap ctx = either (\i -> fail (ctx <> ": unexpected info " <> show i)) pure
+    approxEq tol xs ys =
+      length xs == length ys && and (zipWith (\x y -> abs (x - y) <= tol) xs ys)

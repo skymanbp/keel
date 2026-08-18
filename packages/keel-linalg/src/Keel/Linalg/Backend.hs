@@ -9,6 +9,10 @@
 -- standard names and are therefore rejected as 'BackendMissingSymbol' —
 -- point 'defaultBlasSpec' at a stock OpenBLAS instead.
 --
+-- All symbols are resolved eagerly at open time, so an OpenBLAS built
+-- without LAPACKE surfaces as one clear 'BackendMissingSymbol' up front
+-- instead of a crash mid-computation (the symbol-drift hazard).
+--
 -- The returned 'Backend' is an immutable pin: every operation runs
 -- against the handle you pass it, there is no global backend state and
 -- no swapping. Thread policy: unless the user has set
@@ -32,7 +36,7 @@ module Keel.Linalg.Backend
 import Control.Exception (Exception)
 import Data.List (isInfixOf)
 import Foreign.C.String (CString, peekCString)
-import Foreign.C.Types (CInt (..))
+import Foreign.C.Types (CChar, CInt (..))
 import Foreign.Ptr (FunPtr, Ptr)
 import System.Environment (lookupEnv)
 import System.Info (os)
@@ -40,9 +44,10 @@ import System.Info (os)
 import Keel.Dyn
 import Keel.Dyn.Locate
 
--- | C signatures of the resolved operations (CBLAS calling convention,
--- LP64 integers). Callers go through "Keel.Linalg"; the record is
--- exposed so that layer can live in a separate module.
+-- | C signatures of the resolved operations (CBLAS\/LAPACKE calling
+-- conventions, LP64 integers, @char@ mode arguments). Callers go
+-- through "Keel.Linalg"; the record is exposed so that layer can live
+-- in a separate module.
 data Ops = Ops
   { opDdot :: FunPtr (CInt -> Ptr Double -> CInt -> Ptr Double -> CInt -> IO Double)
   , opDgemm
@@ -61,6 +66,55 @@ data Ops = Ops
            -> Ptr CInt                      -- ipiv
            -> Ptr Double -> CInt            -- B (overwritten with X), ldb
            -> IO CInt                       -- info
+           )
+  , opDposv
+      :: FunPtr
+           (  CInt -> CChar -> CInt -> CInt -- layout, uplo, n, nrhs
+           -> Ptr Double -> CInt            -- A (overwritten with factor), lda
+           -> Ptr Double -> CInt            -- B (overwritten with X), ldb
+           -> IO CInt
+           )
+  , opDgels
+      :: FunPtr
+           (  CInt -> CChar                 -- layout, trans
+           -> CInt -> CInt -> CInt          -- m, n, nrhs
+           -> Ptr Double -> CInt            -- A (overwritten with QR/LQ), lda
+           -> Ptr Double -> CInt            -- B (overwritten with X), ldb
+           -> IO CInt
+           )
+  , opDtrtrs
+      :: FunPtr
+           (  CInt -> CChar -> CChar -> CChar -- layout, uplo, trans, diag
+           -> CInt -> CInt                    -- n, nrhs
+           -> Ptr Double -> CInt              -- A (read-only), lda
+           -> Ptr Double -> CInt              -- B (overwritten with X), ldb
+           -> IO CInt
+           )
+  , opDgetrf
+      :: FunPtr
+           (  CInt -> CInt -> CInt          -- layout, m, n
+           -> Ptr Double -> CInt            -- A (overwritten with LU), lda
+           -> Ptr CInt                      -- ipiv
+           -> IO CInt
+           )
+  , opDgetri
+      :: FunPtr
+           (  CInt -> CInt                  -- layout, n
+           -> Ptr Double -> CInt            -- A (LU in, inverse out), lda
+           -> Ptr CInt                      -- ipiv from dgetrf
+           -> IO CInt
+           )
+  , opDpotrf
+      :: FunPtr
+           (  CInt -> CChar -> CInt         -- layout, uplo, n
+           -> Ptr Double -> CInt            -- A (overwritten with factor), lda
+           -> IO CInt
+           )
+  , opDpotri
+      :: FunPtr
+           (  CInt -> CChar -> CInt         -- layout, uplo, n
+           -> Ptr Double -> CInt            -- A (factor in, inverse out), lda
+           -> IO CInt
            )
   , opSetNumThreads :: Maybe (FunPtr (CInt -> IO ()))
     -- ^ @openblas_set_num_threads@ — optional so its absence degrades
@@ -88,8 +142,8 @@ data BackendError
     -- ^ The build is ILP64 (@USE64BITINT@ in the config string); these
     -- bindings use 32-bit integers and would corrupt silently.
   | BackendMissingSymbol DynError
-    -- ^ A required CBLAS\/LAPACKE symbol is absent (symbol-renamed
-    -- builds land here).
+    -- ^ A required CBLAS\/LAPACKE symbol is absent (symbol-renamed or
+    -- LAPACKE-less builds land here).
   deriving (Eq, Show)
 
 instance Exception BackendError
@@ -146,20 +200,41 @@ openBackendWith spec = do
 
 assemble :: Library -> String -> IO (Either BackendError Backend)
 assemble lib cfg = do
-  ddotR <- resolveSym lib "cblas_ddot"
-  dgemmR <- resolveSym lib "cblas_dgemm"
-  dgesvR <- resolveSym lib "LAPACKE_dgesv"
+  ops <-
+    Ops
+      <$$> "cblas_ddot"
+      <**> "cblas_dgemm"
+      <**> "LAPACKE_dgesv"
+      <**> "LAPACKE_dposv"
+      <**> "LAPACKE_dgels"
+      <**> "LAPACKE_dtrtrs"
+      <**> "LAPACKE_dgetrf"
+      <**> "LAPACKE_dgetri"
+      <**> "LAPACKE_dpotrf"
+      <**> "LAPACKE_dpotri"
   threadsM <- resolveOptional lib "openblas_set_num_threads"
-  case Ops <$> ddotR <*> dgemmR <*> dgesvR <*> pure threadsM of
+  case ($ threadsM) <$> ops of
     Left e -> do
       closeLibrary lib
       pure (Left (BackendMissingSymbol e))
-    Right ops -> do
+    Right ops' -> do
       userSet <- lookupEnv "OPENBLAS_NUM_THREADS"
-      case (userSet, opSetNumThreads ops) of
+      case (userSet, opSetNumThreads ops') of
         (Nothing, Just fp) -> callSetNumThreads fp 1
         _ -> pure ()
-      pure (Right (Capability lib cfg ops))
+      pure (Right (Capability lib cfg ops'))
+  where
+    -- applicative resolution over Either DynError, keeping the first
+    -- missing symbol's name in the error (explicit signatures: GHC2021's
+    -- MonoLocalBinds would otherwise monomorphise the FunPtr type)
+    (<$$>) :: (FunPtr a -> b) -> String -> IO (Either DynError b)
+    f <$$> name = fmap (fmap f) (resolveSym lib name)
+    (<**>) :: IO (Either DynError (FunPtr a -> b)) -> String -> IO (Either DynError b)
+    mf <**> name = do
+      f <- mf
+      x <- resolveSym lib name
+      pure (f <*> x)
+    infixl 4 <$$>, <**>
 
 -- | Drop the pin. All operations on this 'Backend' become invalid.
 closeBackend :: Backend -> IO ()

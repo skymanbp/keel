@@ -29,7 +29,7 @@ Ship a Windows-first capability and interop floor for Haskell data science, neve
 6. [x] **Ship keel-abi 0.1: Arrow C Data/Stream both ways plus DLPack exchange** — DONE (local dev) 2026-08-18: 4 modules (Arrow/DLPack x raw/managed, zero cbits), _Static_assert+runtime layout gate (8 structs), pyarrow 24.0 conformance 4 directions (arrays+streams, both ways, in-process CPython via keel-dyn), numpy 2.3.5 DLPack v1.x round-trip both ways, StablePtr leak gate (10k cycles, live-bytes flat), haddock 100%, green on GHC 9.12.4+9.14.1 Windows. Hackage + 3-OS CI + valgrind lane at publish stage (step 11). (Pre-scope-change note about offering inbound half to dataframe-core as PR: parked, needs owner sign-off)
 7. [ ] **Recruit one design partner who actually needs ONNX inference in Haskell** — Q10 precondition for P3; if none, P5 moves up
 8. [ ] **Ship keel-onnx 0.1 with the end-to-end train-in-Python run-on-Windows demo** — P3 headline; inference only, MIT, resolved at runtime
-10. [~] **Ship keel-linalg 0.1 with immutable backend pin and the named hazard tests**  ← ACTIVE — Started 2026-08-18 (P5 moved up per Q10 rule: no design partner yet, owner has outward actions paused). LP64/ILP64 probe, symbol drift, Windows DLL deps, SciPy 1e-10 oracle
+10. [~] **Ship keel-linalg 0.1 with immutable backend pin and the named hazard tests**  ← ACTIVE — 2026-08-18: Backend (locate/ILP64-probe/thread-pin, Capability-based immutable pin), ddot/dgemm/dgesv over Storable vectors; smoke exact-value + numpy oracle green (1e-10 random, Hilbert backward-error 3e-17); wheel OpenBLAS 0.3.30 as local backend. Remaining: full driver set (posv gels gesdd gesvd syevd geev getrf/getri potrf/potri geqrf/orgqr trtrs), symbol-drift lazy resolution, DLL transitive-dep hazard test
 11. [ ] **Ship the keel umbrella, doctor, setup, docs, Stackage entry and announcement** — Single publish stage at the end: GitHub repo + 3-OS CI + Hackage + Stackage nightly; Discourse optional
 12. [ ] **Hold the governance gate: two maintainers before any 1.0** — P7 ongoing; stable/unstable API split, deprecation policy
 
@@ -41,7 +41,7 @@ Incumbent DataHaskell/dataframe (bus factor 1) owns the pandas/sklearn/plot tier
 
 - Progress: 4/10 steps done
 - Active step: #10
-- Last refined: 2026-08-18T07:23:27 (plan-refiner)
+- Last refined: 2026-08-18T07:34:50 (plan-refiner)
 - Last guardian check: 2026-08-18T02:16:20
 - Edits since last check: 0
 - Turns since last check: 0
