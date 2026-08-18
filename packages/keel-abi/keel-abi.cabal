@@ -29,6 +29,7 @@ library
     exposed-modules:
         Keel.Abi.Arrow
         Keel.Abi.Arrow.Raw
+        Keel.Abi.DLPack
         Keel.Abi.DLPack.Raw
     hs-source-dirs:   src
     build-depends:    base >=4.20 && <4.23
@@ -57,6 +58,20 @@ test-suite keel-abi-pyarrow
     import:           warnings
     type:             exitcode-stdio-1.0
     main-is:          PyArrow.hs
+    other-modules:    PyEmbed
+    hs-source-dirs:   test
+    ghc-options:      -threaded
+    build-depends:
+        base,
+        keel-abi,
+        keel-dyn,
+        process >=1.6 && <1.7
+
+test-suite keel-abi-dlpack
+    import:           warnings
+    type:             exitcode-stdio-1.0
+    main-is:          DLPackNumpy.hs
+    other-modules:    PyEmbed
     hs-source-dirs:   test
     ghc-options:      -threaded
     build-depends:

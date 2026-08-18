@@ -5,12 +5,14 @@ module Main (main) where
 import Control.Monad (unless)
 import Data.IORef (modifyIORef', newIORef, readIORef)
 import Foreign.ForeignPtr (finalizeForeignPtr, withForeignPtr)
-import Foreign.Marshal.Alloc (callocBytes, free)
-import Foreign.Ptr (nullFunPtr, nullPtr)
-import Foreign.Storable (peek, poke, sizeOf)
+import Foreign.Marshal.Alloc (callocBytes, free, mallocBytes)
+import Foreign.Ptr (Ptr, castPtr, nullFunPtr, nullPtr)
+import Foreign.Storable (peek, peekElemOff, poke, pokeElemOff, sizeOf)
 
 import Keel.Abi.Arrow
 import Keel.Abi.Arrow.Raw
+import Keel.Abi.DLPack
+import Keel.Abi.DLPack.Raw
 
 expect :: Bool -> String -> IO ()
 expect ok msg = unless ok (fail msg)
@@ -99,7 +101,31 @@ main = do
   expect (stn == 1) ("stream cleanup ran " <> show stn <> " times, want 1")
   free stp
 
-  putStrLn "keel-abi: managed-layer lifecycle tests passed (6 scenarios)"
+  -- 7. DLPack: produce and consume entirely in-process
+  dcnt <- newIORef (0 :: Int)
+  dbuf <- mallocBytes (6 * 8) :: IO (Ptr Double)
+  mapM_ (uncurry (pokeElemOff dbuf)) (zip [0 ..] [1 .. 6])
+  mt <-
+    newManagedTensor
+      (DLDataType kDLFloat 64 1)
+      [2, 3]
+      (castPtr dbuf)
+      dlpackFlagReadOnly
+      (free dbuf >> modifyIORef' dcnt (+ 1))
+  dvals <- consumeManagedTensor mt $ \m -> do
+    expect (dlverMajor (mtvVersion m) == dlpackMajorVersion) "tensor version major"
+    expect (mtvFlags m == dlpackFlagReadOnly) "tensor flags lost"
+    let t = mtvTensor m
+    expect (dltNDim t == 2) ("tensor ndim: " <> show (dltNDim t))
+    dsh <- mapM (peekElemOff (dltShape t)) [0, 1]
+    expect (dsh == [2, 3]) ("tensor shape: " <> show dsh)
+    expect (dltStrides t == nullPtr) "strides not null (compact expected)"
+    mapM (peekElemOff (castPtr (dltData t) :: Ptr Double)) [0 .. 5]
+  expect (dvals == [1 .. 6]) ("tensor values: " <> show dvals)
+  dn <- readIORef dcnt
+  expect (dn == 1) ("tensor cleanup ran " <> show dn <> " times, want 1")
+
+  putStrLn "keel-abi: managed-layer lifecycle tests passed (7 scenarios)"
   where
     poke' o = poke o emptyArrowArray
     nextLen st stp = withArrowArrayImport $ \ao -> do

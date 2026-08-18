@@ -1,8 +1,8 @@
 -- | Conformance test: round-trip the Arrow C Data Interface AND the
 -- C Stream Interface against pyarrow, in-process, in both directions.
 --
--- CPython is loaded at run time through keel-dyn (dogfooding the
--- capability floor). Four directions:
+-- CPython is loaded at run time through keel-dyn (see "PyEmbed").
+-- Four directions:
 --
 -- 1. array  pyarrow -> Haskell: @[1, 2, 3, None, 5] :: int64@; verify
 --    format\/length\/null bitmap\/values, release, check the callbacks
@@ -16,51 +16,21 @@
 -- 4. stream Haskell -> pyarrow: an 'ArrowStreamProducer' serving two
 --    batches through the managed export layer; Python @read_all()@s,
 --    verifies, and drops it — our cleanup must run.
---
--- If no usable python + pyarrow is found the test SKIPs (prints why,
--- exits 0) unless @KEEL_ABI_REQUIRE_PYARROW@ is set non-empty\/non-zero,
--- in which case absence is a failure. Publish-stage CI sets it.
 module Main (main) where
 
-import Control.Exception (IOException, try)
-import Control.Monad (forM, unless, when)
+import Control.Monad (forM)
 import Data.Bits ((.&.))
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef, writeIORef)
 import Data.Int (Int64)
 import Data.Word (Word8)
-import Foreign.C.String (CString, newCString, peekCString, withCString)
-import Foreign.C.Types (CInt (..))
+import Foreign.C.String (newCString, peekCString)
 import Foreign.Marshal.Alloc (callocBytes, free, mallocBytes)
-import Foreign.Ptr
-  ( FunPtr
-  , Ptr
-  , castPtr
-  , freeHaskellFunPtr
-  , nullFunPtr
-  , nullPtr
-  , ptrToIntPtr
-  )
+import Foreign.Ptr (FunPtr, Ptr, castPtr, freeHaskellFunPtr, nullFunPtr, nullPtr)
 import Foreign.Storable (peek, peekElemOff, poke, pokeElemOff, sizeOf)
-import System.Environment (lookupEnv)
-import System.Exit (ExitCode (..))
-import System.Process (readProcessWithExitCode)
 
 import Keel.Abi.Arrow
 import Keel.Abi.Arrow.Raw
-import Keel.Dyn
-
--- ---------------------------------------------------------------------
--- Python C API via keel-dyn (all calls 'safe': python re-enters Haskell
--- through our release callbacks)
-
-foreign import ccall safe "dynamic"
-  mkPyInitEx :: FunPtr (CInt -> IO ()) -> CInt -> IO ()
-
-foreign import ccall safe "dynamic"
-  mkPyRun :: FunPtr (CString -> IO CInt) -> CString -> IO CInt
-
-foreign import ccall safe "dynamic"
-  mkPyFinalize :: FunPtr (IO CInt) -> IO CInt
+import PyEmbed
 
 foreign import ccall "wrapper"
   mkSchemaRelease :: (Ptr ArrowSchema -> IO ()) -> IO (FunPtr (Ptr ArrowSchema -> IO ()))
@@ -68,75 +38,12 @@ foreign import ccall "wrapper"
 foreign import ccall "wrapper"
   mkArrayRelease :: (Ptr ArrowArray -> IO ()) -> IO (FunPtr (Ptr ArrowArray -> IO ()))
 
--- ---------------------------------------------------------------------
--- Discovery (out of process, so a broken python cannot kill the test)
-
-runPy :: String -> [String] -> IO (Maybe String)
-runPy exe args = do
-  r <- try (readProcessWithExitCode exe args "")
-        :: IO (Either IOException (ExitCode, String, String))
-  pure $ case r of
-    Right (ExitSuccess, out, _) -> Just (filter (`notElem` "\r\n") out)
-    _ -> Nothing
-
-findPython :: IO (Maybe (String, FilePath))
-findPython = go ["python", "python3"]
-  where
-    dllScript =
-      "import sys, sysconfig, os\n\
-      \if os.name == 'nt':\n\
-      \    print(os.path.join(sys.base_prefix, 'python%d%d.dll' % sys.version_info[:2]))\n\
-      \else:\n\
-      \    print(os.path.join(sysconfig.get_config_var('LIBDIR') or '', sysconfig.get_config_var('INSTSONAME') or ''))\n"
-    go [] = pure Nothing
-    go (exe : rest) = do
-      ok <- runPy exe ["-c", "import pyarrow"]
-      case ok of
-        Nothing -> go rest
-        Just _ -> do
-          mdll <- runPy exe ["-c", dllScript]
-          pure ((,) exe <$> mdll)
-
--- ---------------------------------------------------------------------
-
-expect :: Bool -> String -> IO ()
-expect ok msg = unless ok (fail msg)
-
-addr :: Ptr a -> String
-addr = show . ptrToIntPtr
-
-type RunScript = String -> String -> IO ()
-
 main :: IO ()
-main = do
-  found <- findPython
-  required <- lookupEnv "KEEL_ABI_REQUIRE_PYARROW"
-  case found of
-    Nothing -> case required of
-      Just v | v /= "" && v /= "0" ->
-        fail "KEEL_ABI_REQUIRE_PYARROW set but no usable python+pyarrow found"
-      _ -> putStrLn "keel-abi-pyarrow: SKIP - no usable python+pyarrow on this machine"
-    Just (_, dll) -> runConformance dll
-
-runConformance :: FilePath -> IO ()
-runConformance dll = do
-  lib <- either (\e -> fail ("load python: " <> show e)) pure =<< loadLibrary dll
-  pyInitEx <- requireSym lib "Py_InitializeEx"
-  pyRun <- requireSym lib "PyRun_SimpleString"
-  pyFin <- requireSym lib "Py_FinalizeEx"
-  mkPyInitEx pyInitEx 0
-  let runScript label script = do
-        rc <- withCString script (mkPyRun pyRun)
-        expect (rc == 0) (label <> ": python script failed (traceback above)")
-
+main = withEmbeddedPython "pyarrow" "KEEL_ABI_REQUIRE_PYARROW" $ \runScript -> do
   arrayImportDirection runScript
   arrayExportDirection runScript
   streamImportDirection runScript
   streamExportDirection runScript
-
-  fin <- mkPyFinalize pyFin
-  when (fin /= 0) (putStrLn "note: Py_FinalizeEx reported errors (ignored)")
-  closeLibrary lib
   putStrLn "keel-abi-pyarrow: arrays and streams round-tripped both directions"
 
 -- ---------------------------------------------------------------------
