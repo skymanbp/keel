@@ -64,6 +64,29 @@ trainScript =
   \ref = sess.run(None, {iname: xt})[0]\n\
   \print('\\n'.join('%.9g' % v for v in ref.ravel()))\n"
 
+-- Binary LogisticRegression, zipmap disabled so the second output is a
+-- plain float tensor: outputs = label (int64 [n]), probabilities
+-- (float32 [n,2]). Prints labels then flattened probabilities.
+classifierScript :: String
+classifierScript =
+  "import sys\n\
+  \import numpy as np\n\
+  \from sklearn.linear_model import LogisticRegression\n\
+  \from skl2onnx import to_onnx\n\
+  \import onnxruntime as rt\n\
+  \X = np.array([[0,0],[1,0],[0,1],[1,1],[2,1],[1,2],[3,2],[2,3]], dtype=np.float64)\n\
+  \y = (X[:,0] + X[:,1] > 2).astype(np.int64)\n\
+  \clf = LogisticRegression().fit(X, y)\n\
+  \onx = to_onnx(clf, X.astype(np.float32), options={id(clf): {'zipmap': False}})\n\
+  \with open(sys.argv[1], 'wb') as f:\n\
+  \    f.write(onx.SerializeToString())\n\
+  \xt = np.array([[0.5,1.5],[2,0],[1,3],[4,1]], dtype=np.float32)\n\
+  \sess = rt.InferenceSession(sys.argv[1], providers=['CPUExecutionProvider'])\n\
+  \iname = sess.get_inputs()[0].name\n\
+  \labels, probs = sess.run(None, {iname: xt})\n\
+  \print(' '.join(str(int(v)) for v in labels.ravel()))\n\
+  \print('\\n'.join('%.9g' % v for v in probs.ravel()))\n"
+
 -- Same test points as the python side, row-major float32.
 xTest :: VS.Vector Float
 xTest = VS.fromList [0.5, 1.5, 2, 0, 1, 3, 4, 1]
@@ -126,8 +149,54 @@ run ort = do
             ]
       expect (all (<= 1e-6) diffs)
         ("prediction disagreement vs python onnxruntime: " <> show diffs)
-      putStrLn ("max |haskell - python| = " <> show (maximum diffs) <> " <= 1e-6")
+      putStrLn ("regression: max |haskell - python| = " <> show (maximum diffs) <> " <= 1e-6")
+
+  -- Part 2: classifier with two outputs — int64 labels (exact match)
+  -- and float32 probabilities (1e-6), through runTensors' typed path.
+  let clfPath = tmp </> "keel-onnx-demo-clf.onnx"
+  clfOut <- runPy ["-c", classifierScript, clfPath]
+  (refLabels, refProbs) <- case fmap lines clfOut of
+    Just (labelLine : probLines) ->
+      pure
+        ( map read (words labelLine) :: [Int]
+        , map read (concatMap words probLines) :: [Float]
+        )
+    _ -> fail "python classifier script failed"
+  expect (length refLabels == 4) ("expected 4 reference labels, got " <> show (length refLabels))
+  expect (length refProbs == 8) ("expected 8 reference probabilities, got " <> show (length refProbs))
+
+  clfModel <- BS.readFile clfPath
+  withOrtEnv ort $ \env ->
+    withSessionFromBytes env clfModel $ \sess -> do
+      ins <- inputNames sess
+      outs <- outputNames sess
+      inName <- case ins of
+        [n] -> pure n
+        _ -> fail ("classifier: expected 1 input, got " <> show ins)
+      (labelName, probName) <- case outs of
+        [a, b] -> pure (a, b)
+        _ -> fail ("classifier: expected 2 outputs, got " <> show outs)
+      putStrLn ("classifier interface: " <> inName <> " -> " <> labelName <> ", " <> probName)
+
+      [labelT, probT] <- runTensors sess [(inName, [4, 2], xTest)] [labelName, probName]
+      case labelT of
+        Int64Tensor lshape ls -> do
+          expect (lshape == [4]) ("label shape: " <> show lshape)
+          expect (map fromIntegral (VS.toList ls) == refLabels)
+            ("labels: " <> show (VS.toList ls) <> " /= " <> show refLabels)
+        t -> fail ("label output is not int64: " <> show t)
+      case probT of
+        FloatTensor pshape ps -> do
+          expect (pshape == [4, 2]) ("prob shape: " <> show pshape)
+          let pdiffs =
+                [ abs (realToFrac got - realToFrac ref :: Double)
+                | (got, ref) <- zip (VS.toList ps) refProbs
+                ]
+          expect (all (<= 1e-6) pdiffs)
+            ("probability disagreement: " <> show pdiffs)
+          putStrLn ("classifier: max |haskell - python| = " <> show (maximum pdiffs) <> " <= 1e-6")
+        t -> fail ("probability output is not float32: " <> show t)
 
   -- The Ort handle is deliberately NOT closed: onnxruntime owns thread
   -- pools and unloading the DLL at process end is the safe path.
-  putStrLn "keel-onnx-demo: sklearn -> skl2onnx -> Haskell agreed to 1e-6"
+  putStrLn "keel-onnx-demo: regression + classifier agreed with python to 1e-6"

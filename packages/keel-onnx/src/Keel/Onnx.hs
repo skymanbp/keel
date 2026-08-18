@@ -36,11 +36,12 @@ module Keel.Onnx
   , outputNames
 
     -- * Inference
+  , OnnxTensor (..)
+  , runTensors
   , runFloats
   ) where
 
 import Control.Exception (Exception, bracket, throwIO)
-import Control.Monad (unless)
 import Data.ByteString qualified as BS
 import Data.ByteString.Unsafe qualified as BSU
 import Data.Int (Int64)
@@ -48,6 +49,8 @@ import Data.Vector.Storable qualified as VS
 import Data.Word (Word32)
 import Foreign.C.String (CString, peekCString, withCString)
 import Foreign.C.Types (CInt (..), CSize (..))
+import Foreign.Concurrent qualified as FC
+import Foreign.ForeignPtr (castForeignPtr)
 import Foreign.Marshal.Alloc (alloca)
 import Foreign.Marshal.Array (allocaArray, peekArray, pokeArray, withArray)
 import Foreign.Ptr (FunPtr, Ptr, castPtr, nullPtr)
@@ -372,16 +375,26 @@ outputNames = namesOf "SessionGetOutputName" oSessionGetOutputCount oSessionGetO
 -- ---------------------------------------------------------------------
 -- Inference
 
--- | Run the model on float32 tensors: named inputs (shape + row-major
--- data, zero-copy into ORT) to named outputs (shape + data, copied
--- out). Throws 'OnnxTypeMismatch' if a requested output is not a
--- float32 tensor.
-runFloats
+-- | An output tensor: shape plus data. The data vectors are /zero-copy
+-- views/ of ORT's own output buffers — the underlying @OrtValue@ is
+-- released by the vector's finalizer, so the view stays valid for as
+-- long as you hold it and costs nothing to obtain.
+data OnnxTensor
+  = FloatTensor [Int64] (VS.Vector Float)
+  | Int64Tensor [Int64] (VS.Vector Int64)
+  | DoubleTensor [Int64] (VS.Vector Double)
+  deriving (Eq, Show)
+
+-- | Run the model: named float32 inputs (shape + row-major data,
+-- zero-copy into ORT) to named outputs (zero-copy out, see
+-- 'OnnxTensor'). Output element types other than float32\/int64\/double
+-- throw 'OnnxTypeMismatch'.
+runTensors
   :: Session
   -> [(String, [Int64], VS.Vector Float)] -- ^ inputs
   -> [String] -- ^ outputs to fetch
-  -> IO [([Int64], VS.Vector Float)]
-runFloats (Session ort sess) inputs outNames =
+  -> IO [OnnxTensor]
+runTensors (Session ort sess) inputs outNames =
   bracket
     ( creating ops "CreateCpuMemoryInfo" $ \out ->
         callIIP_S (oCreateCpuMemoryInfo ops) ortArenaAllocator ortMemTypeDefault out
@@ -401,15 +414,27 @@ runFloats (Session ort sess) inputs outNames =
                             inNameArr inValArr (fromIntegral (length inputs))
                             outNameArr (fromIntegral nOut) outValArr
                     outVals <- peekArray nOut outValArr
-                    mapM
-                      ( \v ->
-                          readFloatTensor ops v
-                            <* callP_V (oReleaseValue ops) v
-                      )
-                      outVals
+                    mapM (readValue ops) outVals
   where
     ops = capOps ort
     nOut = length outNames
+
+-- | 'runTensors' restricted to float32 outputs (the common
+-- regression\/probability case).
+runFloats
+  :: Session
+  -> [(String, [Int64], VS.Vector Float)] -- ^ inputs
+  -> [String] -- ^ outputs to fetch
+  -> IO [([Int64], VS.Vector Float)]
+runFloats sess inputs outNames = do
+  ts <- runTensors sess inputs outNames
+  mapM
+    ( \t -> case t of
+        FloatTensor shape v -> pure (shape, v)
+        Int64Tensor _ _ -> throwIO (OnnxTypeMismatch "runFloats output" (fromIntegral onnxElementInt64))
+        DoubleTensor _ _ -> throwIO (OnnxTypeMismatch "runFloats output" (fromIntegral onnxElementDouble))
+    )
+    ts
 
 -- Zero-copy input tensors: each borrows the vector's buffer, which the
 -- surrounding unsafeWith keeps alive for the whole Run.
@@ -442,33 +467,46 @@ withCStrings = go []
     go acc [] k = k (reverse acc)
     go acc (s : rest) k = withCString s $ \cs -> go (cs : acc) rest k
 
-readFloatTensor :: OrtOps -> Ptr OrtValueT -> IO ([Int64], VS.Vector Float)
-readFloatTensor ops val =
-  bracket
-    (creating ops "GetTensorTypeAndShape" (callPP_S (oGetTensorTypeAndShape ops) val))
-    (callP_V (oReleaseShapeInfo ops))
-    $ \info -> do
-      ety <- alloca $ \out -> do
-        checkStatus ops "GetTensorElementType"
-          =<< callPP_S (oGetTensorElementType ops) info out
-        peek out
-      unless (ety == onnxElementFloat) $
-        throwIO (OnnxTypeMismatch "runFloats output" (fromIntegral ety))
-      ndim <- alloca $ \out -> do
-        checkStatus ops "GetDimensionsCount"
-          =<< callPP_S (oGetDimensionsCount ops) info out
-        peek out
-      dims <- allocaArray (fromIntegral ndim) $ \out -> do
-        checkStatus ops "GetDimensions"
-          =<< callPPZ_S (oGetDimensions ops) info out ndim
-        peekArray (fromIntegral ndim) out
-      count <- alloca $ \out -> do
-        checkStatus ops "GetTensorShapeElementCount"
-          =<< callPP_S (oGetTensorShapeElementCount ops) info out
-        peek out
-      dp <- alloca $ \out -> do
-        checkStatus ops "GetTensorMutableData"
-          =<< callPP_S (oGetTensorMutableData ops) val out
-        peek out
-      xs <- peekArray (fromIntegral count) (castPtr dp :: Ptr Float)
-      pure (dims, VS.fromList xs)
+-- Take ownership of an output OrtValue and expose its buffer as a
+-- zero-copy vector: the ForeignPtr wraps the data pointer, its
+-- finalizer releases the OrtValue. On an unsupported element type the
+-- value is released immediately and 'OnnxTypeMismatch' is thrown.
+readValue :: OrtOps -> Ptr OrtValueT -> IO OnnxTensor
+readValue ops val = do
+  (ety, dims, count) <-
+    bracket
+      (creating ops "GetTensorTypeAndShape" (callPP_S (oGetTensorTypeAndShape ops) val))
+      (callP_V (oReleaseShapeInfo ops))
+      $ \info -> do
+        ety <- alloca $ \out -> do
+          checkStatus ops "GetTensorElementType"
+            =<< callPP_S (oGetTensorElementType ops) info out
+          peek out
+        ndim <- alloca $ \out -> do
+          checkStatus ops "GetDimensionsCount"
+            =<< callPP_S (oGetDimensionsCount ops) info out
+          peek out
+        dims <- allocaArray (fromIntegral ndim) $ \out -> do
+          checkStatus ops "GetDimensions"
+            =<< callPPZ_S (oGetDimensions ops) info out ndim
+          peekArray (fromIntegral ndim) out
+        count <- alloca $ \out -> do
+          checkStatus ops "GetTensorShapeElementCount"
+            =<< callPP_S (oGetTensorShapeElementCount ops) info out
+          peek out
+        pure (ety, dims, fromIntegral (count :: CSize))
+  dp <- alloca $ \out -> do
+    checkStatus ops "GetTensorMutableData"
+      =<< callPP_S (oGetTensorMutableData ops) val out
+    peek out
+  let view :: VS.Storable a => IO (VS.Vector a)
+      view = do
+        fp <- FC.newForeignPtr (castPtr dp) (callP_V (oReleaseValue ops) val)
+        pure (VS.unsafeFromForeignPtr0 (castForeignPtr fp) count)
+  case () of
+    _ | ety == onnxElementFloat -> FloatTensor dims <$> view
+      | ety == onnxElementInt64 -> Int64Tensor dims <$> view
+      | ety == onnxElementDouble -> DoubleTensor dims <$> view
+      | otherwise -> do
+          callP_V (oReleaseValue ops) val
+          throwIO (OnnxTypeMismatch "runTensors output" (fromIntegral ety))
