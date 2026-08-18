@@ -1,2 +1,3 @@
 packages:
     packages/keel-dyn
+    packages/keel-abi
