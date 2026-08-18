@@ -76,5 +76,15 @@ jobs:
       - name: Build
         run: cabal build all --enable-tests
 
+      # Also an end-to-end test of keel setup itself: download the
+      # pinned official archive, verify SHA-256, install to the keel
+      # data dir — which the linalg suites then resolve from.
+      - name: Install OpenBLAS via keel setup (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cabal run keel -- setup blas
+          echo "KEEL_LINALG_REQUIRE_OPENBLAS=1" >> $env:GITHUB_ENV
+          echo "KEEL_LINALG_REQUIRE_ORACLE=1" >> $env:GITHUB_ENV
+
       - name: Test
         run: cabal test all --test-show-details=direct

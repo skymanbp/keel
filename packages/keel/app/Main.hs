@@ -1,4 +1,4 @@
--- | The @keel@ executable: @keel doctor@ (and, later, @keel setup@).
+-- | The @keel@ executable: @keel doctor@ and @keel setup {blas,onnx}@.
 module Main (main) where
 
 import System.Environment (getArgs)
@@ -6,6 +6,7 @@ import System.Exit (exitFailure)
 import System.IO (hPutStrLn, stderr)
 
 import Keel.Doctor
+import Keel.Setup
 
 main :: IO ()
 main = do
@@ -13,15 +14,10 @@ main = do
   case args of
     [] -> runDoctor
     ["doctor"] -> runDoctor
-    ("setup" : _) -> do
-      hPutStrLn stderr
-        "keel setup is not implemented yet. Meanwhile: install the native\n\
-        \library yourself and point KEEL_OPENBLAS / KEEL_ONNXRUNTIME at it,\n\
-        \or drop it into the per-user keel data dir (see keel-dyn's\n\
-        \Keel.Dyn.Locate documentation for the exact directory)."
-      exitFailure
+    ["setup", "blas"] -> runSetup "OpenBLAS" setupBlas
+    ["setup", "onnx"] -> runSetup "ONNX Runtime" setupOnnx
     _ -> do
-      hPutStrLn stderr "usage: keel [doctor]"
+      hPutStrLn stderr "usage: keel [doctor | setup blas | setup onnx]"
       exitFailure
 
 runDoctor :: IO ()
@@ -33,4 +29,19 @@ runDoctor = do
     then putStrLn "\nall capabilities available"
     else do
       putStrLn "\nsome capabilities need attention (see fixes above)"
+      exitFailure
+
+runSetup :: String -> IO (Either SetupError FilePath) -> IO ()
+runSetup what act = do
+  putStrLn ("installing " <> what <> " (official archive, SHA-256 pinned) ...")
+  r <- act
+  case r of
+    Right dir -> do
+      putStrLn ("installed to " <> dir)
+      putStrLn "run 'keel doctor' to verify"
+    Left (UnsupportedPlatform _ guidance) -> do
+      hPutStrLn stderr ("not available for this platform: " <> guidance)
+      exitFailure
+    Left err -> do
+      hPutStrLn stderr ("setup failed: " <> show err)
       exitFailure
