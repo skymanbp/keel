@@ -13,12 +13,14 @@
 module Main (main) where
 
 import Control.Exception (IOException, try)
-import Control.Monad (unless)
+import Control.Monad (forM_, unless)
 import Data.ByteString qualified as BS
 import Data.Vector.Storable qualified as VS
+import GHC.Stats (GCDetails (..), RTSStats (..), getRTSStats, getRTSStatsEnabled)
 import System.Environment (lookupEnv, setEnv)
 import System.Exit (ExitCode (..))
 import System.FilePath ((</>))
+import System.Mem (performMajorGC)
 import System.Process (readProcessWithExitCode)
 
 import Keel.Onnx
@@ -167,6 +169,24 @@ run ort = do
       expect (all (<= 1e-6) diffs)
         ("prediction disagreement vs python onnxruntime: " <> show diffs)
       putStrLn ("regression: max |haskell - python| = " <> show (maximum diffs) <> " <= 1e-6")
+
+      -- leak gate: 500 inferences must leave the live Haskell heap flat
+      -- (the zero-copy output ForeignPtrs and their release finalizers
+      -- must retire under GC); C-side allocator leaks are the
+      -- publish-stage valgrind lane's job
+      statsOn <- getRTSStatsEnabled
+      expect statsOn "RTS stats disabled - test suite must be built with -with-rtsopts=-T"
+      performMajorGC
+      live0 <- gcdetails_live_bytes . gc <$> getRTSStats
+      forM_ [1 :: Int .. 500] $ \_ -> do
+        _ <- runFloats sess [(inName, [4, 2], xTest)] [outName]
+        pure ()
+      performMajorGC
+      live1 <- gcdetails_live_bytes . gc <$> getRTSStats
+      let grownKiB = (fromIntegral live1 - fromIntegral live0) `div` 1024 :: Integer
+      expect (grownKiB < 1024)
+        ("live heap grew " <> show grownKiB <> " KiB over 500 inferences (leak)")
+      putStrLn ("leak gate: live heap delta " <> show grownKiB <> " KiB over 500 inferences")
 
   -- Part 2: classifier with two outputs — int64 labels (exact match)
   -- and float32 probabilities (1e-6), through runTensors' typed path.

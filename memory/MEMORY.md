@@ -16,11 +16,12 @@
   this index gets regenerated automatically.
 -->
 
-*Updated: 2026-08-18 09:17*  |  Sessions: 2  |  Memories: 54  |  Topics: 0
+*Updated: 2026-08-18 10:02*  |  Sessions: 2  |  Memories: 59  |  Topics: 0
 
 ## Memory Distribution
 
 - `roadmap`: 2
+- `haskell_ecosystem`: 2
 - `architecture`: 2
 - `windows_test_bugs`: 1
 - `user_decisions`: 1
@@ -40,25 +41,25 @@
 - `hasktorch_status`: 1
 - `hasktorch_ghc_compat`: 1
 - `haskell_research`: 1
+- `haskell_production`: 1
 - `haskell_packages`: 1
+- `haskell_numeric`: 1
 - `haskell_libraries`: 1
-- `haskell_ecosystem`: 1
 - `haskell_dataframe`: 1
 - `haskell-dataframe`: 1
 - `ghc_versions`: 1
 - `fork_structure`: 1
 - `fork_CI_results`: 1
-- `ecosystem_landscape`: 1
-- `documentation`: 1
 
 ## By Category
 
-- `result`: 25 entries  (avg importance 3.6)
+- `result`: 29 entries  (avg importance 3.6)
 - `note`: 11 entries  (avg importance 2.9)
 - `decision`: 7 entries  (avg importance 4.4)
 - `config`: 4 entries  (avg importance 3.5)
 - `task`: 4 entries  (avg importance 4.0)
 - `arch`: 3 entries  (avg importance 4.0)
+- `bug`: 1 entries  (avg importance 2.0)
 
 ## Project Vocabulary
 

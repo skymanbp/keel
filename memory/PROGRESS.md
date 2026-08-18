@@ -1,13 +1,13 @@
 # PROGRESS — HSDS
 
-*Generated: 2026-08-18T09:17:54* · via stop · D:\Projects\HSDS
+*Generated: 2026-08-18T10:02:33* · via stop · D:\Projects\HSDS
 
 > SINGLE SOURCE OF TRUTH for session handoff. Always full-rewrite from SQLite
 > table `progress`. **Never append. Never patch by hand.**
 
 ## 0. Session
 
-🟢 **Current session**: `#f627a4e5`  ·  started `2026-08-18 02:06`  ·  last write `2026-08-18 09:17`  ·  trigger `stop`
+🟢 **Current session**: `#f627a4e5`  ·  started `2026-08-18 02:06`  ·  last write `2026-08-18 10:02`  ·  trigger `stop`
 
 > If your Claude session ID does NOT start with `f627a4e5`, this row was written by a different session — treat the §3 todos / §6 files as that session's work, not yours.
 
@@ -50,16 +50,12 @@ keel-dyn L1 complete: Windows/POSIX dual-platform runtime dynamic loader (LoadLi
 ## 6. Files Touched This Session
 
 **edit**:
+  - `d:\Projects\HSDS\.github\workflows\ci.yml`
+  - `d:\Projects\HSDS\packages\keel-linalg\src\Keel\Linalg\Backend.hs`
   - `C:\Users\skyma\AppData\Local\Temp\claude\d--Projects-HSDS\f627a4e5-ac32-4940-bb23-883811ffb134\scratchpad\plan_refined.json`
-  - `d:\Projects\HSDS\packages\keel-onnx\src\Keel\Onnx.hs`
-  - `d:\Projects\HSDS\packages\keel-onnx\src\Keel\Onnx\Raw.hs`
-  - `d:\Projects\HSDS\cabal.project`
-  - `d:\Projects\HSDS\packages\keel-onnx\test\Demo.hs`
-  - `d:\Projects\HSDS\packages\keel-onnx\test\Slots.hs`
-  - `d:\Projects\HSDS\packages\keel-onnx\test\cbits\slot_gate.c`
-  - `d:\Projects\HSDS\packages\keel-onnx\keel-onnx.cabal`
-  - `C:\Users\skyma\AppData\Local\Temp\claude\d--Projects-HSDS\f627a4e5-ac32-4940-bb23-883811ffb134\scratchpad\ort_slots.c`
-  - `d:\Projects\HSDS\packages\keel-linalg\keel-linalg.cabal`
+  - `d:\Projects\HSDS\packages\keel\keel.cabal`
+  - `d:\Projects\HSDS\packages\keel\app\Main.hs`
+  - `d:\Projects\HSDS\packages\keel\src\Keel\Setup.hs`
 
 ## 7. Pre-compact Transcript Pointer
 
