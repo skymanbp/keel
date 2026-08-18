@@ -1,7 +1,7 @@
 # Contributing
 
 Thanks for considering it. This project is deliberately small — four capability
-packages, one umbrella, and upstream PRs — and it stays that way
+packages and one umbrella — and it stays that way
 ([GOVERNANCE.md](GOVERNANCE.md)). The best contributions are bite-sized and
 self-contained.
 
@@ -26,9 +26,9 @@ if it is empty, open an issue asking for one.
 - New scope (a new package, a new subsystem) is not a PR — it is a discussion
   with the owner first. See the frozen-scope rule in GOVERNANCE.md.
 
-## Upstream work counts
+## Upstream relationship
 
-Contributions this project owes upstream (Windows CI for `dataframe`,
-type-error quality, Arrow inbound) are tracked here but land as PRs on
-[DataHaskell/dataframe](https://github.com/DataHaskell/dataframe). Helping land
-one of those counts as contributing to keel.
+keel depends on `dataframe-core` as an ordinary Hackage dependency and ships
+no changes to it. Upstream bugs discovered by our CI are reported upstream;
+fixing them is organised as separate DataFrame-repo work outside this
+project (owner decision, 2026-08-18).

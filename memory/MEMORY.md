@@ -16,44 +16,49 @@
   this index gets regenerated automatically.
 -->
 
-*Updated: 2026-08-17 23:29*  |  Sessions: 0  |  Memories: 25  |  Topics: 0
+*Updated: 2026-08-18 00:04*  |  Sessions: 1  |  Memories: 38  |  Topics: 0
 
 ## Memory Distribution
 
+- `windows_test_bugs`: 1
+- `user_decisions`: 1
 - `research_gaps`: 1
 - `project_status`: 1
+- `pending_decisions`: 1
 - `ml_standards`: 1
 - `ihaskell_windows`: 1
 - `hasktorch_status`: 1
 - `haskell_research`: 1
+- `haskell_packages`: 1
+- `haskell_libraries`: 1
 - `haskell_ecosystem`: 1
 - `haskell_dataframe`: 1
 - `haskell-dataframe`: 1
 - `ghc_versions`: 1
+- `fork_structure`: 1
+- `fork_CI_results`: 1
 - `ecosystem_landscape`: 1
 - `design_inspiration`: 1
 - `dependency_strategy`: 1
 - `data_interchange`: 1
+- `ci_monitoring`: 1
+- `cc_memory_plan`: 1
 - `build_success`: 1
 - `build-fix`: 1
+- `PR_preparation`: 1
+- `P0_build_verification`: 1
 - `Hasktorch_status`: 1
 - `Haskell_ML_ecosystem`: 1
 - `Haskell packages`: 1
-- `Haskell data libraries`: 1
-- `HLearn_history`: 1
-- `GHC_versions`: 1
-- `GHC backends`: 1
-- `GHC SIMD`: 1
-- `DataFrame_design`: 1
 
 ## By Category
 
-- `result`: 15 entries  (avg importance 3.3)
-- `note`: 6 entries  (avg importance 3.0)
-- `arch`: 1 entries  (avg importance 5.0)
-- `config`: 1 entries  (avg importance 3.0)
-- `decision`: 1 entries  (avg importance 5.0)
-- `task`: 1 entries  (avg importance 3.0)
+- `result`: 19 entries  (avg importance 3.5)
+- `note`: 9 entries  (avg importance 2.9)
+- `config`: 3 entries  (avg importance 3.3)
+- `decision`: 3 entries  (avg importance 4.0)
+- `arch`: 2 entries  (avg importance 4.5)
+- `task`: 2 entries  (avg importance 3.5)
 
 ---
 *Query:        `python -m cc_memory.cli.mem --project <path> stats`*

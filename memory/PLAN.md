@@ -17,34 +17,31 @@ Ship a Windows-first capability and interop floor for Haskell data science, neve
 - Demo: sklearn model exported via skl2onnx runs in Haskell on Windows, predictions agree to 1e-6
 - pyarrow round-trips Arrow C Data + Stream both directions in CI on all 3 OSes, no leaks under +RTS -s and valgrind
 - Every keel-linalg driver matches SciPy to 1e-10 relative error on random and ill-conditioned inputs in CI
-- Upstream PRs B2-B6 merged into the dataframe monorepo, each closing a maintainer-filed issue
 - At least one external Hackage reverse dependency across the four capability packages
 - No package tagged 1.0 without two named maintainers
 
 ## Steps
 
-1. [!] **Donate Windows + macOS CI workflow to DataHaskell/dataframe as a PR** — PAUSED by owner 2026-08-18: fork CI evidence complete (build 4/4 green; Windows tests red on 3 real upstream bugs). No PR/issues until owner instructs.
 2. [x] **Build the full dataframe stack on Windows 11 and publish the result honestly** — PASS 2026-08-18: cabal.project.ci rc=0 (217s warm) + Hackage releases rc=0 + smoke ok, GHC 9.12.4; first-run fail was MAX_PATH 262>260 (environmental, proven). Report: docs/p0/BUILD-REPORT.md
-3. [ ] **Publish the positioning Discourse post and the repo hygiene files**  ← ACTIVE — 'this is not a new dataframe'; MIT, GOVERNANCE, CONTRIBUTING
-4. [ ] **Rule on the P0 hard gate before writing any library code** — Build half of the gate PASSED (local + CI). PR half deferred with step #1 pause.
-5. [ ] **Ship keel-dyn 0.1 to Hackage as a standalone runtime dynamic loader** — P1; product name DECIDED 2026-08-17: keel (Hackage-free, verified)
+3. [!] **Publish the positioning Discourse post and the repo hygiene files** — Hygiene files done; Discourse draft deferred by owner (if ever published, cite fork CI results, no PR link)
+4. [x] **Rule on the P0 hard gate before writing any library code** — Gate RULED PASSED 2026-08-18: Windows builds green locally + 4/4 fork CI lanes; CI-PR half moot after scope change (Q11)
+5. [~] **Ship keel-dyn 0.1 to Hackage as a standalone runtime dynamic loader**  ← ACTIVE — 2026-08-18: package scaffolded, Windows impl (LoadLibraryExW+fallback, GetProcAddress, AddDllDirectory) + POSIX impl (dlopen) written; smoke tests PASS on Windows/GHC 9.12.4. Remaining: search-path policy (env override -> data dir), Capability record, haddock polish; POSIX verify at publish stage
 6. [ ] **Ship keel-abi 0.1: Arrow C Data/Stream both ways plus DLPack exchange** — P2; offer the inbound half to dataframe-core as a PR
 7. [ ] **Recruit one design partner who actually needs ONNX inference in Haskell** — Q10 precondition for P3; if none, P5 moves up
 8. [ ] **Ship keel-onnx 0.1 with the end-to-end train-in-Python run-on-Windows demo** — P3 headline; inference only, MIT, resolved at runtime
-9. [ ] **Land upstream error-quality and leakage PRs B2-B6 in parallel** — Unsatisfiable, golden corpus, Phase/Role, params, schema diffs
 10. [ ] **Ship keel-linalg 0.1 with immutable backend pin and the named hazard tests** — P5; LP64/ILP64 probe, symbol drift, Windows DLL deps
-11. [ ] **Ship the keel umbrella, doctor, setup, docs, Stackage entry and announcement** — P6; CI-enforced install/TTFI budgets fail build on >20%
+11. [ ] **Ship the keel umbrella, doctor, setup, docs, Stackage entry and announcement** — Single publish stage at the end: GitHub repo + 3-OS CI + Hackage + Stackage nightly; Discourse optional
 12. [ ] **Hold the governance gate: two maintainers before any 1.0** — P7 ongoing; stable/unstable API split, deprecation policy
 
 ## Context
 
-Incumbent DataHaskell/dataframe (bus factor 1) owns the pandas/sklearn/plot tiers; competing there is the documented death pattern. HSDS takes only verified-empty layers plus upstream PRs. Non-negotiable: zero build-time native deps. Decided: independent repo, full ~32-week plan, product name keel decided 2026-08-17 (packages keel-dyn/abi/onnx/linalg + umbrella keel; repo codename HSDS). RAILS: default-language GHC2021 explicit everywhere; GHC floor 9.10.3, primary/CI-default 9.12.4, 9.14.1 allowed-to-fail; cabal is the documented default, submit to Stackage nightly early, assume no LTS 25. DEFERRED (never schedule without owner sign-off): DLPack-hasktorch bridge, DuckDB Parquet-write escape hatch, C kernels w/ cpuid dispatch, Storable column upstream surgery (Q5), GHC SIMD wrapper, autodiff, NN training, GPU kernels, WASM/JS, distributed compute, R interop, curated library inventory.
+Incumbent DataHaskell/dataframe (bus factor 1) owns the pandas/sklearn/plot tiers; competing there is the documented death pattern. HSDS takes only verified-empty layers plus upstream PRs. Non-negotiable: zero build-time native deps. Decided: independent repo, full ~32-week plan, product name keel decided 2026-08-17 (packages keel-dyn/abi/onnx/linalg + umbrella keel; repo codename HSDS). SCOPE CHANGE 2026-08-18 (Q11): all upstream-PR work removed; dataframe = Hackage dep only; three fork-CI-found Windows bugs go to a separate DataFrame-repo effort outside keel; execution local-first, single publish stage at end. RAILS: default-language GHC2021 explicit everywhere; GHC floor 9.10.3, primary/CI-default 9.12.4, 9.14.1 allowed-to-fail; cabal is the documented default, submit to Stackage nightly early, assume no LTS 25. DEFERRED (never schedule without owner sign-off): DLPack-hasktorch bridge, DuckDB Parquet-write escape hatch, C kernels w/ cpuid dispatch, Storable column upstream surgery (Q5), GHC SIMD wrapper, autodiff, NN training, GPU kernels, WASM/JS, distributed compute, R interop, curated library inventory.
 
 ## Status
 
-- Progress: 1/12 steps done
-- Active step: #3
-- Last refined: 2026-08-17T23:47:50 (plan-refiner)
-- Last guardian check: 2026-08-17T23:28:38
+- Progress: 2/10 steps done
+- Active step: #5
+- Last refined: 2026-08-18T02:20:01 (plan-refiner)
+- Last guardian check: 2026-08-18T02:16:20
 - Edits since last check: 0
 - Turns since last check: 0

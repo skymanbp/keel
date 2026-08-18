@@ -33,17 +33,19 @@ it on Windows first, under MIT, with **zero build-time native dependencies**.
   library, not a numeric prelude.** Every prior Haskell DS project that started
   there died there.
 
-Gaps we find in the packages above are closed by upstream pull requests, never
-by rival implementations.
+keel never ships a rival implementation of anything the dataframe stack
+provides. Upstream gaps and bugs we find are reported; fixing them is separate
+upstream-repo work outside this project.
 
 ## Status
 
-Pre-release — currently in **P0**, the falsification phase of
-[PLAN.md](PLAN.md): donate Windows + macOS CI to the dataframe monorepo and
-prove the whole stack builds on Windows 11 before a line of library code is
-written. Research provenance for every claim: [docs/research/](docs/research/).
+Pre-release. **P0 (falsification) passed 2026-08-18**: the dataframe stack
+builds on Windows 11 locally and on CI —
+[docs/p0/BUILD-REPORT.md](docs/p0/BUILD-REPORT.md). Current phase: local
+development of the four capability packages ([PLAN.md](PLAN.md) §5). Research
+provenance for every claim: [docs/research/](docs/research/).
 
 ## License
 
-[MIT](LICENSE) — matching upstream `dataframe`, so code moves upstream without
-relicensing friction.
+[MIT](LICENSE) — matching upstream `dataframe`, keeping the licensing story
+across the ecosystem uniform.

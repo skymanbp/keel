@@ -25,8 +25,10 @@ Context: I'm verifying/using the stack on Windows 11 and would like the
 Windows story to be CI-enforced rather than anecdotal. I ran this workflow on
 a fork first: <FORK-RUN-LINK — fill in after the fork run is green>.
 
-**Status: PAUSED by owner (2026-08-18) — do not submit anything upstream
-(PR, issues, comments) until the owner says so.**
+**Status: RETIRED from this project (owner decision, 2026-08-18).** The
+upstream CI PR is no longer part of the keel plan; any DataFrame-repo fixes
+or PRs (including the three Windows bugs below) happen as a separate effort.
+This file is kept as reference material for that future effort.
 
 **Pre-submission checklist (all must be true before opening the PR):**
 - [x] Workflow ran on our fork: run 32095552668 — build 4/4 green; macOS

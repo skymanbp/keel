@@ -41,17 +41,17 @@ downloads/month). Instead, HSDS occupies the two layers that are verified-empty:
 2. **The layer beside** — interop and quality the incumbent lacks:
    - **Inbound Arrow C Data Interface** (Haskell has *no* Arrow import path; both prior
      attempts died at 1 and 6 commits) + **DLPack** tensor exchange
-   - **Windows + macOS CI, type-error quality, leakage-typed pipelines** — delivered as
-     upstream PRs into the dataframe monorepo, never as rival packages
+   - **Windows CI evidence and portability findings** — produced on our own fork;
+     upstream fixes are separate DataFrame-repo work outside this project
 
 The headline capability: **"train anywhere (PyTorch/sklearn), run in Haskell, on
 Windows, with GPU, under MIT"** — verified impossible to obtain today, and cheap to
 ship (ONNX Runtime v1.29.0, MIT, published 2026-08-12 with official
 `onnxruntime-win-x64` + CUDA archives; verified first-party via GitHub API).
 
-Four capability packages + one umbrella + a stream of upstream PRs, ~32 weeks of
-part-time work for 1–2 people, with a falsification gate (P0) before any library code
-is written.
+Four capability packages + one umbrella, ~32 weeks of part-time work for 1–2
+people, with a falsification gate (P0) before any library code is written.
+(Upstream-PR track removed from scope 2026-08-18 — §7.1 Q11.)
 
 ---
 
@@ -151,8 +151,9 @@ blocking on dependent types), `analyze` (2017), `harrow`/`hs-arrow` (1 and 6 com
 **One sentence (must open the README): "keel is not a new dataframe."**
 
 HSDS adds capability Haskell does not have — on Windows, under permissive licenses,
-with zero build-time native dependencies — and strengthens the incumbent through
-finished, tested upstream PRs. The tabular/expression vocabulary is the incumbent's
+with zero build-time native dependencies — and never competes with it; upstream
+engagement is limited to bug reports (fixes = separate DataFrame-repo work,
+owner decision 2026-08-18). The tabular/expression vocabulary is the incumbent's
 (`DataFrame`, `Column`, `Expr`, `TExpr`) — used, not wrapped, not re-declared.
 
 **Verified target user:** the Haskell developer with an occasional data task (14.53%
@@ -160,8 +161,8 @@ of State of Haskell 2025 respondents want ML content) plus the Haskell service t
 must run a model trained elsewhere (ONNX). "Data scientists tired of Python" is a
 mirage — treat any plan aimed at them as unfunded speculation.
 
-**Honest success metric:** the four capability packages acquire external dependents,
-and the upstream PRs land. NOT "Haskell has a numpy/pandas/sklearn stack" — that
+**Honest success metric:** the four capability packages acquire external dependents.
+NOT "Haskell has a numpy/pandas/sklearn stack" — that
 substantially exists and belongs to someone else. Calibration: the incumbent, after
 2.5 years and 1,267 commits, has exactly one external Hackage reverse dependency.
 
@@ -291,38 +292,17 @@ doesn't), `OPENBLAS_NUM_THREADS=1` default vs the GHC RTS scheduler. Every opera
 cross-checked against SciPy in CI to 1e-10 relative error on random and
 ill-conditioned inputs.
 
-### Tier B — upstream contributions (no new packages; PRs into the incumbent)
+### Tier B — REMOVED from scope (owner decision, 2026-08-18)
 
-- B1. **Windows + macOS CI for the dataframe monorepo** (verified absent; the single
-  highest value-per-hour contribution and the cheapest falsification of the whole
-  Windows thesis).
-- B2. Upgrade dataframe-core's existing `TypeError` sites (AssertAbsent/AssertPresent/
-  AssertKeyTypesMatch/AssertDisjoint/InnerJoinSchema/…) to `GHC.TypeError.Unsatisfiable`
-  (GHC ≥9.8) with hand-written messages carrying available column names + "did you
-  mean" (Levenshtein). Highest value-per-line item identified anywhere in the corpus.
-- B3. **Golden type-error corpus as a build-failing CI gate:** ~60 known-bad programs
-  compiled via ghc subprocess, output normalized, byte-diffed against `.golden` files;
-  budget: top-10 mistakes ≤6 lines, offending symbol named on line 1.
-- B4. **Phase/Role leakage typing** (`Split 'Train`, `Pipeline 'Fitted`) as a PR to
-  dataframe-learn's `DataFrame.ModelSelection` — fit-on-test and transform-before-fit
-  become type errors. The one genuinely novel guarantee in the entire design corpus;
-  no library in any language ships it; roughly one module.
-- B5. **Generic-derived hyperparameter reflection** (params/setParams/defaults),
-  *additive* to the existing type-safe polymorphic `gridSearch :: … -> [c] -> …` —
-  makes configs enumerable/serializable/diffable. Never replace `[c]` with string maps.
-- B6. Structured column-level schema-mismatch diffs on CSV ingestion (closes issue
-  #177, silent Double→Int coercion), against the existing `KnownSchema`/`schemaEvidence`.
-- B7. Inbound Arrow donated into dataframe-core once keel-abi proves it.
-- B8. Help cut an **IHaskell Hackage release carrying PR #1595's Windows support**
-  (the current release predates it) + prebuilt kernel bundles — the single
-  highest-leverage unblock in the onboarding chain.
-- B9. Independent db-benchmark verification (issue #115 — upstream's numbers are
-  self-published on a Chromebook).
-- **NOT done: the Parquet writer.** It is the funded, mentored GSoC 2026 project
-  (issue #181). Offer review, never competition.
-
-Interaction rule: every contribution arrives as a **finished, tested PR that closes an
-issue the maintainer already filed** — never as a design discussion.
+The upstream-PR track (Windows CI donation, type-error quality, leakage
+typing, hyperparameter reflection, schema diffs, Arrow donation, IHaskell
+release, benchmark verification) is no longer part of this project.
+dataframe is consumed strictly as a Hackage dependency. The three Windows
+bugs our fork CI discovered (hardcoded /tmp; CRLF roundtrip x2;
+quote-spans-boundary — docs/p0/BUILD-REPORT.md) will be fixed via a
+SEPARATE DataFrame-repo effort with its own plan, unrelated to keel.
+Unchanged principle: keel never ships a rival implementation of anything
+the dataframe stack provides.
 
 ### Tier C — the thin seam (one package)
 
@@ -345,6 +325,12 @@ issue the maintainer already filed** — never as a design discussion.
 Rough calendar assumes 1–2 part-time people; phases overlap as noted. Every phase ends
 in an independently valuable, shippable state.
 
+**Execution order revised 2026-08-18 (owner):** all local development first —
+keel-dyn → keel-abi → keel-onnx → keel-linalg → umbrella, verified on this
+Windows machine — then one publish stage at the end (GitHub repo, 3-OS CI,
+Hackage, Stackage). Per-phase Hackage milestones below are the original
+calendar; deliverables unchanged.
+
 ### P0 (weeks 1–3) — FALSIFY THE WINDOWS THESIS BEFORE ANY LIBRARY CODE
 1. Donate a Windows + macOS CI workflow to DataHaskell/dataframe as a PR.
 2. Build the entire dataframe stack locally on this Windows 11 machine
@@ -356,10 +342,10 @@ in an independently valuable, shippable state.
 4. Repo hygiene: MIT LICENSE, GOVERNANCE.md, CONTRIBUTING.md (good-first-issue
    policy), README "what keel is NOT" section.
 
-**HARD GATE:** if the stack does not build on Windows or the CI PR is rejected, the
-Windows differentiator is dead → execute the pre-decided contingency (§7.1 Q1,
-already decided: narrow to the three incumbent-independent packages) before writing a
-line of library code.
+**HARD GATE — RULED PASSED (2026-08-18):** the stack builds on Windows both
+locally and on fork CI (4/4 build lanes green; docs/p0/BUILD-REPORT.md). The
+CI-PR half of the gate is moot: upstream-PR work was removed from scope the
+same day (§7.1 Q11). Windows differentiator confirmed alive.
 
 ### P1 (weeks 3–7) — `keel-dyn` 0.1 to Hackage, alone
 Exit: a stranger can dlopen an arbitrary library on Windows/Linux/macOS through it and
@@ -369,8 +355,7 @@ GHC {9.10.3, 9.12.4, 9.14.1(allowed-to-fail)}.
 ### P2 (weeks 6–12) — `keel-abi` 0.1 to Hackage
 Arrow C Data + Stream both directions; DLPack v-versioned import/export; vendored ABI
 headers in test-only cbits; `_Static_assert` layout gate; pyarrow round-trip
-conformance in CI on 3 OSes; leak/valgrind gates. Immediately offer the inbound half
-to dataframe-core as a PR — the moment the project stops looking like a competitor.
+conformance in CI on 3 OSes; leak/valgrind gates.
 
 ### P3 (weeks 10–18) — `keel-onnx` 0.1: the headline
 `OrtGetApiBase()` binding via keel-dyn; full session lifecycle under bracket;
@@ -379,10 +364,9 @@ archive. **Deliverable = the end-to-end demo:** train in scikit-learn, export wi
 skl2onnx, run in Haskell on Windows, assert prediction agreement to 1e-6.
 Precondition (§7, Q10): one design partner identified who actually needs this.
 
-### P4 (weeks 14–20, parallel, all upstream) — the error-quality and leakage PRs
-B2 (Unsatisfiable messages), B3 (golden type-error corpus), B4 (Phase/Role leakage
-typing), B5 (hyperparameter reflection), B6 (schema-mismatch diffs). Every item a
-finished PR closing a filed issue (#177, #152, #191, #192, #115 as applicable).
+### P4 — REMOVED (owner decision, 2026-08-18)
+The upstream-PR phase is out of this project's scope; see §4 Tier B note and
+§7.1 Q11. DataFrame-repo fixes are a separate effort, unrelated to keel.
 
 ### P5 (weeks 18–26) — `keel-linalg` 0.1
 As specified in §4 A4, with the two soundness corrections and the named hazard tests.
@@ -440,6 +424,7 @@ R interop, or a curated library inventory.
 | Q2 | Relationship to DataHaskell | **Long-term independent repo.** Interaction with upstream is exclusively finished, tested PRs; no org membership sought |
 | Q3 | Package naming | **DECIDED 2026-08-17: product name = `keel`** — unified prefix `keel-dyn` / `keel-abi` / `keel-onnx` / `keel-linalg` + umbrella `keel`; repo codename stays HSDS. Hackage `keel` verified free (HTTP 404, 2026-08-17; nearest neighbour `keelung` is an unrelated zk-SNARK DSL); only cross-ecosystem collision is the unrelated k8s tool keel.sh (2,720★). Chosen for the "laying the keel" metaphor: laid first, defines the ship, never becomes the ship — the name itself encodes the fixed-scope rule |
 | Q6 | Budget | **Full ~32-week plan (P0–P7)**, phases ordered by standalone value so any early stop still leaves net-positive artifacts |
+| Q11 | Upstream engagement (2026-08-18) | **All upstream-PR work removed from this project.** dataframe = Hackage dependency only; the three fork-CI-found Windows bugs go to a separate DataFrame-repo effort outside keel; execution is local-first (develop all four packages + umbrella locally, publish in one final stage) |
 
 ### 7.2 Still open (recommendations recorded)
 

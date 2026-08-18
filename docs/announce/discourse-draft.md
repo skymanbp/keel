@@ -1,7 +1,8 @@
 # Discourse post draft (Haskell Discourse)
 
-> Status: DRAFT — publish only after owner approval, and only after the
-> dataframe CI PR is open (the post references it as evidence of posture).
+> Status: DRAFT, deferred by owner. The CI-PR gate no longer applies
+> (upstream-PR work removed from scope 2026-08-18); if published later, cite
+> the fork CI results (docs/p0/BUILD-REPORT.md) instead of a PR link.
 
 **Title:** keel: a capability floor for Haskell data science (not a new dataframe)
 

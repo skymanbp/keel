@@ -7,12 +7,13 @@ maintainer and an unbounded surface (see [PLAN.md](PLAN.md) §1.4).
 ## Scope
 
 1. **The scope is frozen**: four capability packages (`keel-dyn`, `keel-abi`,
-   `keel-onnx`, `keel-linalg`), one umbrella (`keel`), and upstream pull
-   requests. The deferred list in [PLAN.md](PLAN.md) §5 is not a backlog — no
+   `keel-onnx`, `keel-linalg`) and one umbrella (`keel`); dataframe is
+   consumed as a Hackage dependency only. The deferred list in [PLAN.md](PLAN.md) §5 is not a backlog — no
    deferred item is scheduled without explicit owner sign-off.
-2. **Never fork what we can patch.** Gaps in upstream packages are closed by
-   finished, tested PRs that close issues the maintainer already filed — never
-   by rival packages, and never by design discussions posted as issues.
+2. **Never fork, never rival.** keel does not reimplement anything the
+   dataframe stack provides. Upstream bugs we find are reported; fixing them
+   is separate upstream-repo work outside this project's scope (owner
+   decision, 2026-08-18).
 
 ## Releases
 
