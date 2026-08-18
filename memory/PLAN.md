@@ -27,9 +27,9 @@ Ship a Windows-first capability and interop floor for Haskell data science, neve
 4. [x] **Rule on the P0 hard gate before writing any library code** — Gate RULED PASSED 2026-08-18: Windows builds green locally + 4/4 fork CI lanes; CI-PR half moot after scope change (Q11)
 5. [x] **Ship keel-dyn 0.1 to Hackage as a standalone runtime dynamic loader** — DONE (local dev) 2026-08-18: Keel.Dyn.Locate (env override -> XDG/APPDATA data dir -> system, override authoritative no-fallback), Capability record + requireSym + Exception DynError, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR for absolute paths; haddock 100% on both exposed modules; tests PASS on Windows GHC 9.12.4 + 9.14.1. Hackage upload + POSIX run + 9.10.3 floor verify roll into publish stage (step 11)
 6. [x] **Ship keel-abi 0.1: Arrow C Data/Stream both ways plus DLPack exchange** — DONE (local dev) 2026-08-18: 4 modules (Arrow/DLPack x raw/managed, zero cbits), _Static_assert+runtime layout gate (8 structs), pyarrow 24.0 conformance 4 directions (arrays+streams, both ways, in-process CPython via keel-dyn), numpy 2.3.5 DLPack v1.x round-trip both ways, StablePtr leak gate (10k cycles, live-bytes flat), haddock 100%, green on GHC 9.12.4+9.14.1 Windows. Hackage + 3-OS CI + valgrind lane at publish stage (step 11). (Pre-scope-change note about offering inbound half to dataframe-core as PR: parked, needs owner sign-off)
-7. [ ] **Recruit one design partner who actually needs ONNX inference in Haskell** — Q10 precondition for P3; if none, P5 moves up
-8. [ ] **Ship keel-onnx 0.1 with the end-to-end train-in-Python run-on-Windows demo** — P3 headline; inference only, MIT, resolved at runtime
-10. [~] **Ship keel-linalg 0.1 with immutable backend pin and the named hazard tests**  ← ACTIVE — 2026-08-18: Backend (locate/ILP64-probe/thread-pin, Capability-based immutable pin), ddot/dgemm/dgesv over Storable vectors; smoke exact-value + numpy oracle green (1e-10 random, Hilbert backward-error 3e-17); wheel OpenBLAS 0.3.30 as local backend. Remaining: full driver set (posv gels gesdd gesvd syevd geev getrf/getri potrf/potri geqrf/orgqr trtrs), symbol-drift lazy resolution, DLL transitive-dep hazard test
+7. [ ] **Recruit one design partner who actually needs ONNX inference in Haskell** — Q10 gate LIFTED by owner 2026-08-18 (no longer blocks step 8); recruitment itself is an outward action deferred to the publish stage
+8. [~] **Ship keel-onnx 0.1 with the end-to-end train-in-Python run-on-Windows demo**  ← ACTIVE — Started 2026-08-18 after owner lifted the Q10 design-partner gate (local-first rule). Inference only, MIT, OrtGetApiBase resolved at runtime via keel-dyn; deliverable = sklearn->skl2onnx->Haskell demo, 1e-6 agreement
+10. [x] **Ship keel-linalg 0.1 with immutable backend pin and the named hazard tests** — DONE (local dev) 2026-08-18: all 14 A4 driver symbols (gesv posv gels gesdd gesvd syevd geev getrf getri potrf potri geqrf orgqr trtrs) + ddot/dgemm over Storable vectors; hazards covered: ILP64 probe (both polarities), symbol drift (eager resolution names first missing), DLL transitive deps (wheel dir load exercises SEARCH_DLL_LOAD_DIR), thread pin + readback; numpy oracle 12 checks at 1e-10 (Hilbert backward 3e-17, sign-free SVD/eigen/QR gates); green GHC 9.12.4+9.14.1; haddock 100%. Hackage + scipy-oracle-in-CI at publish stage (step 11)
 11. [ ] **Ship the keel umbrella, doctor, setup, docs, Stackage entry and announcement** — Single publish stage at the end: GitHub repo + 3-OS CI + Hackage + Stackage nightly; Discourse optional
 12. [ ] **Hold the governance gate: two maintainers before any 1.0** — P7 ongoing; stable/unstable API split, deprecation policy
 
@@ -39,9 +39,9 @@ Incumbent DataHaskell/dataframe (bus factor 1) owns the pandas/sklearn/plot tier
 
 ## Status
 
-- Progress: 4/10 steps done
-- Active step: #10
-- Last refined: 2026-08-18T07:34:50 (plan-refiner)
+- Progress: 5/10 steps done
+- Active step: #8
+- Last refined: 2026-08-18T09:04:09 (plan-refiner)
 - Last guardian check: 2026-08-18T02:16:20
 - Edits since last check: 0
 - Turns since last check: 0

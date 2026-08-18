@@ -2,3 +2,4 @@ packages:
     packages/keel-dyn
     packages/keel-abi
     packages/keel-linalg
+    packages/keel-onnx
