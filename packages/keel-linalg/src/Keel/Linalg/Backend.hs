@@ -169,6 +169,11 @@ data Ops = Ops
            -> Ptr Double                    -- tau
            -> IO CInt
            )
+  , opLapackeLibrary :: Maybe Library
+    -- ^ When LAPACKE lives in a separate shared library (Debian splits
+    -- OpenBLAS's CBLAS from @liblapacke@), the handle is kept here so
+    -- the resolved 'FunPtr's stay valid and 'closeBackend' can release
+    -- it; 'Nothing' when the main library carried LAPACKE itself.
   , opSetNumThreads :: Maybe (FunPtr (CInt -> IO ()))
     -- ^ @openblas_set_num_threads@ — optional so its absence degrades
     -- only thread control, not the backend.
@@ -253,27 +258,43 @@ openBackendWith spec = do
 
 assemble :: Library -> String -> IO (Either BackendError Backend)
 assemble lib cfg = do
+  -- LAPACKE may live in the main library (stock OpenBLAS builds) or in
+  -- a separate liblapacke (Debian splits the packaging). Probe the main
+  -- library; on a miss, load liblapacke and resolve the drivers there.
+  -- The plain "liblapacke.so.3" name is the LP64 build by Debian's own
+  -- naming (the ILP64 variant is liblapacke64).
+  probe <- resolveSym lib "LAPACKE_dgesv" :: IO (Either DynError (FunPtr ()))
+  (lapackeLib, lapackeSource) <- case probe of
+    Right _ -> pure (Nothing, lib)
+    Left _ -> do
+      alt <- loadFirst ["liblapacke.so.3", "liblapacke.so"]
+      pure $ case alt of
+        Just l2 -> (Just l2, l2)
+        Nothing -> (Nothing, lib) -- resolution below reports the miss
+  let (<***>) :: IO (Either DynError (FunPtr a -> b)) -> String -> IO (Either DynError b)
+      (<***>) = resolveFrom lapackeSource
   ops <-
     Ops
       <$$> "cblas_ddot"
       <**> "cblas_dgemm"
-      <**> "LAPACKE_dgesv"
-      <**> "LAPACKE_dposv"
-      <**> "LAPACKE_dgels"
-      <**> "LAPACKE_dtrtrs"
-      <**> "LAPACKE_dgetrf"
-      <**> "LAPACKE_dgetri"
-      <**> "LAPACKE_dpotrf"
-      <**> "LAPACKE_dpotri"
-      <**> "LAPACKE_dgesdd"
-      <**> "LAPACKE_dgesvd"
-      <**> "LAPACKE_dsyevd"
-      <**> "LAPACKE_dgeev"
-      <**> "LAPACKE_dgeqrf"
-      <**> "LAPACKE_dorgqr"
+      <***> "LAPACKE_dgesv"
+      <***> "LAPACKE_dposv"
+      <***> "LAPACKE_dgels"
+      <***> "LAPACKE_dtrtrs"
+      <***> "LAPACKE_dgetrf"
+      <***> "LAPACKE_dgetri"
+      <***> "LAPACKE_dpotrf"
+      <***> "LAPACKE_dpotri"
+      <***> "LAPACKE_dgesdd"
+      <***> "LAPACKE_dgesvd"
+      <***> "LAPACKE_dsyevd"
+      <***> "LAPACKE_dgeev"
+      <***> "LAPACKE_dgeqrf"
+      <***> "LAPACKE_dorgqr"
   threadsM <- resolveOptional lib "openblas_set_num_threads"
-  case ($ threadsM) <$> ops of
+  case (\f -> f lapackeLib threadsM) <$> ops of
     Left e -> do
+      mapM_ closeLibrary lapackeLib
       closeLibrary lib
       pure (Left (BackendMissingSymbol e))
     Right ops' -> do
@@ -283,18 +304,30 @@ assemble lib cfg = do
         _ -> pure ()
       pure (Right (Capability lib cfg ops'))
   where
+    loadFirst :: [FilePath] -> IO (Maybe Library)
+    loadFirst [] = pure Nothing
+    loadFirst (n : ns) =
+      loadLibrary n >>= either (const (loadFirst ns)) (pure . Just)
     -- applicative resolution over Either DynError, keeping the first
     -- missing symbol's name in the error (explicit signatures: GHC2021's
-    -- MonoLocalBinds would otherwise monomorphise the FunPtr type)
+    -- MonoLocalBinds would otherwise monomorphise the FunPtr type).
+    -- <**> resolves from the main library; <***> (defined in the do
+    -- block, closing over lapackeSource) from wherever LAPACKE lives.
+    -- No fixity declarations: all three default to infixl 9, so the
+    -- chain associates left at one level.
     (<$$>) :: (FunPtr a -> b) -> String -> IO (Either DynError b)
     f <$$> name = fmap (fmap f) (resolveSym lib name)
-    (<**>) :: IO (Either DynError (FunPtr a -> b)) -> String -> IO (Either DynError b)
-    mf <**> name = do
+    resolveFrom :: Library -> IO (Either DynError (FunPtr a -> b)) -> String -> IO (Either DynError b)
+    resolveFrom src mf name = do
       f <- mf
-      x <- resolveSym lib name
+      x <- resolveSym src name
       pure (f <*> x)
-    infixl 4 <$$>, <**>
+    (<**>) :: IO (Either DynError (FunPtr a -> b)) -> String -> IO (Either DynError b)
+    (<**>) = resolveFrom lib
 
--- | Drop the pin. All operations on this 'Backend' become invalid.
+-- | Drop the pin (both libraries when LAPACKE was split out). All
+-- operations on this 'Backend' become invalid.
 closeBackend :: Backend -> IO ()
-closeBackend = closeLibrary . capLibrary
+closeBackend be = do
+  mapM_ closeLibrary (opLapackeLibrary (capOps be))
+  closeLibrary (capLibrary be)

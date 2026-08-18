@@ -46,7 +46,10 @@ jobs:
       - name: Install OpenBLAS (Linux)
         if: runner.os == 'Linux'
         run: |
-          sudo apt-get update && sudo apt-get install -y libopenblas0 libopenblas-dev
+          # Debian splits packaging: CBLAS lives in libopenblas, the
+          # LAPACKE C interface in liblapacke - keel-linalg handles the
+          # split at run time, both packages are needed
+          sudo apt-get update && sudo apt-get install -y libopenblas0 libopenblas-dev liblapacke liblapacke-dev
           sudo ldconfig
           P=$(ldconfig -p | grep -m1 'libopenblas\.so\.0' | awk '{print $NF}')
           if [ -z "$P" ]; then P=$(find /usr/lib -name 'libopenblas.so*' | head -1); fi

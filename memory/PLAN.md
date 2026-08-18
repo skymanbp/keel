@@ -30,7 +30,7 @@ Ship a Windows-first capability and interop floor for Haskell data science, neve
 7. [ ] **Recruit one design partner who actually needs ONNX inference in Haskell** — Q10 gate LIFTED by owner 2026-08-18 (no longer blocks step 8); recruitment itself is an outward action deferred to the publish stage
 8. [~] **Ship keel-onnx 0.1 with the end-to-end train-in-Python run-on-Windows demo**  ← ACTIVE — 2026-08-18 THE DEMO PASSES: sklearn->skl2onnx->Haskell on Windows, agreement 0.0 (gate 1e-6), names via introspection; OrtGetApiBase + 27 slot-gated OrtApi bindings vs vendored v1.24.4 header, CreateSessionFromArray (no ORTCHAR_T branch), bracket lifecycle; stray system ORT 1.17.1 exercised the OnnxApiUnsupported fallback for real. Green 9.12.4+9.14.1, haddock 100%. Remaining local: int64/classifier outputs, zero-copy output view (A3 says both ways; current output read copies), leak pass; keel setup onnx lands with the umbrella (step 11)
 10. [x] **Ship keel-linalg 0.1 with immutable backend pin and the named hazard tests** — DONE (local dev) 2026-08-18: all 14 A4 driver symbols (gesv posv gels gesdd gesvd syevd geev getrf getri potrf potri geqrf orgqr trtrs) + ddot/dgemm over Storable vectors; hazards covered: ILP64 probe (both polarities), symbol drift (eager resolution names first missing), DLL transitive deps (wheel dir load exercises SEARCH_DLL_LOAD_DIR), thread pin + readback; numpy oracle 12 checks at 1e-10 (Hilbert backward 3e-17, sign-free SVD/eigen/QR gates); green GHC 9.12.4+9.14.1; haddock 100%. Hackage + scipy-oracle-in-CI at publish stage (step 11)
-11. [~] **Ship the keel umbrella, doctor, setup, docs, Stackage entry and announcement** — OUTWARD ACTIONS UNLOCKED by owner 2026-08-18. Done so far: public repo github.com/skymanbp/keel + 3-OS x 3-GHC CI (POSIX builds green first try; 3 POSIX test root causes fixed: RTLD_GLOBAL for embedded libpython, macOS framework INSTSONAME paths, wheel lib globs); keel umbrella package with WORKING keel doctor (diagnosed this machine's stray PATH onnxruntime 1.17.1 on first run). Remaining: keel setup (official archive URLs + 3-platform SHA-256 pins + curl/tar + pure-Haskell SHA verify), frame<->buffer bridge (dataframe-core dep), 4 tutorials, CI REQUIRE tightening, Hackage batch, Stackage nightly, Discourse
+11. [~] **Ship the keel umbrella, doctor, setup, docs, Stackage entry and announcement** — OUTWARD UNLOCKED 2026-08-18. Done: public repo github.com/skymanbp/keel; 3-OS x 3-GHC CI GREEN 9/9 (run 32143830572, incl. 9.10.3 floor + arm64; per-suite audit: pyarrow/DLPack/ONNX-demo genuinely ran on all OSes); keel doctor (diagnosed real machine issues on first run); keel setup blas+onnx SHA-256-pinned official archives PROVEN live (this machine went 2/4 -> 4/4 'all capabilities available'; data-dir 1.24.4 outranks stray PATH 1.17.1); REQUIRE gates on (SKIP on CI = failure); CI Windows runs 'keel setup blas' each round = e2e setup test. Remaining: frame<->buffer bridge (dataframe-core dep), 4 tutorials, Hackage batch, Stackage nightly, Discourse + design partner
 12. [ ] **Hold the governance gate: two maintainers before any 1.0** — P7 ongoing; stable/unstable API split, deprecation policy
 
 ## Context
@@ -41,7 +41,7 @@ Incumbent DataHaskell/dataframe (bus factor 1) owns the pandas/sklearn/plot tier
 
 - Progress: 5/10 steps done
 - Active step: #8
-- Last refined: 2026-08-18T09:47:23 (plan-refiner)
+- Last refined: 2026-08-18T09:57:04 (plan-refiner)
 - Last guardian check: 2026-08-18T02:16:20
 - Edits since last check: 0
 - Turns since last check: 0
