@@ -16,6 +16,14 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-14, windows-latest]
         ghc: ['9.10.3', '9.12.4', '9.14.1']
+    # Conformance suites SKIP when a dependency is missing; on CI every
+    # dependency is provisioned, so a SKIP is a regression — require them.
+    # (Windows has no OpenBLAS source yet, so the linalg REQUIREs are set
+    # only where OpenBLAS is installed below.)
+    env:
+      KEEL_ABI_REQUIRE_PYARROW: '1'
+      KEEL_ABI_REQUIRE_NUMPY: '1'
+      KEEL_ONNX_REQUIRE: '1'
 
     steps:
       - uses: actions/checkout@v4
@@ -39,13 +47,22 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update && sudo apt-get install -y libopenblas0 libopenblas-dev
-          echo "KEEL_OPENBLAS=$(ldconfig -p | awk '/libopenblas\.so/ {print $NF; exit}')" >> "$GITHUB_ENV"
+          sudo ldconfig
+          P=$(ldconfig -p | grep -m1 'libopenblas\.so\.0' | awk '{print $NF}')
+          if [ -z "$P" ]; then P=$(find /usr/lib -name 'libopenblas.so*' | head -1); fi
+          echo "found OpenBLAS at: $P"
+          test -n "$P"
+          echo "KEEL_OPENBLAS=$P" >> "$GITHUB_ENV"
+          echo "KEEL_LINALG_REQUIRE_OPENBLAS=1" >> "$GITHUB_ENV"
+          echo "KEEL_LINALG_REQUIRE_ORACLE=1" >> "$GITHUB_ENV"
 
       - name: Install OpenBLAS (macOS)
         if: runner.os == 'macOS'
         run: |
           brew install openblas
           echo "KEEL_OPENBLAS=$(brew --prefix openblas)/lib/libopenblas.dylib" >> "$GITHUB_ENV"
+          echo "KEEL_LINALG_REQUIRE_OPENBLAS=1" >> "$GITHUB_ENV"
+          echo "KEEL_LINALG_REQUIRE_ORACLE=1" >> "$GITHUB_ENV"
 
       - name: Cache cabal store
         uses: actions/cache@v4

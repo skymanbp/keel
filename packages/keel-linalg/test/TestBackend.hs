@@ -4,9 +4,9 @@
 -- that misses, a python site-packages sweep for a wheel-bundled stock
 -- OpenBLAS (faiss ships one on Windows; numpy\/scipy wheels are
 -- symbol-renamed and useless here) is tried through the @KEEL_OPENBLAS@
--- override. No backend found => SKIP (exit 0), unless the given
--- require-env-var is set — publish-stage CI sets it with a stock
--- OpenBLAS installed.
+-- override. No backend found => SKIP (exit 0) with the original
+-- failure printed, unless the given require-env-var is set —
+-- publish-stage CI sets it with a stock OpenBLAS installed.
 module TestBackend (withTestBackend) where
 
 import Control.Exception (IOException, finally, try)
@@ -34,19 +34,21 @@ findWheelOpenblas = do
 withTestBackend :: String -> (Backend -> IO ()) -> IO ()
 withTestBackend requireVar action = do
   first <- openBackend
-  opened <- case first of
-    Right be -> pure (Just be)
-    Left _ -> do
+  case first of
+    Right be -> action be `finally` closeBackend be
+    Left firstErr -> do
       wheel <- findWheelOpenblas
-      case wheel of
+      second <- case wheel of
         Nothing -> pure Nothing
         Just dll -> do
           setEnv "KEEL_OPENBLAS" dll
           either (const Nothing) Just <$> openBackend
-  required <- lookupEnv requireVar
-  case opened of
-    Nothing -> case required of
-      Just v | v /= "" && v /= "0" ->
-        fail (requireVar <> " set but no usable OpenBLAS found")
-      _ -> putStrLn "SKIP - no standard-symbol OpenBLAS on this machine"
-    Just be -> action be `finally` closeBackend be
+      required <- lookupEnv requireVar
+      case second of
+        Just be -> action be `finally` closeBackend be
+        Nothing -> case required of
+          Just v | v /= "" && v /= "0" ->
+            fail (requireVar <> " set but no usable OpenBLAS found: " <> show firstErr)
+          _ ->
+            putStrLn ("SKIP - no standard-symbol OpenBLAS on this machine ("
+              <> show firstErr <> ")")
