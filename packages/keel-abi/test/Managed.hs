@@ -2,9 +2,11 @@
 -- foreign producer: Haskell plays both exporter and consumer.
 module Main (main) where
 
-import Control.Monad (unless)
+import Control.Monad (forM_, unless)
 import Data.IORef (modifyIORef', newIORef, readIORef)
 import Foreign.ForeignPtr (finalizeForeignPtr, withForeignPtr)
+import GHC.Stats (GCDetails (..), RTSStats (..), getRTSStats, getRTSStatsEnabled)
+import System.Mem (performMajorGC)
 import Foreign.Marshal.Alloc (callocBytes, free, mallocBytes)
 import Foreign.Ptr (Ptr, castPtr, nullFunPtr, nullPtr)
 import Foreign.Storable (peek, peekElemOff, poke, pokeElemOff, sizeOf)
@@ -125,7 +127,24 @@ main = do
   dn <- readIORef dcnt
   expect (dn == 1) ("tensor cleanup ran " <> show dn <> " times, want 1")
 
-  putStrLn "keel-abi: managed-layer lifecycle tests passed (7 scenarios)"
+  -- 8. leak gate: 10k full export/release cycles must not grow the live
+  -- Haskell heap (a leaked StablePtr or cleanup closure would). C-side
+  -- malloc leaks are invisible here — that is the publish-stage valgrind
+  -- lane's job.
+  statsOn <- getRTSStatsEnabled
+  expect statsOn "RTS stats disabled - test suite must be built with -with-rtsopts=-T"
+  performMajorGC
+  live0 <- gcdetails_live_bytes . gc <$> getRTSStats
+  forM_ [1 :: Int .. 10000] $ \_ ->
+    withArrowArrayImport $ \lp ->
+      exportArrowArray lp emptyArrowArray (pure ())
+  performMajorGC
+  live1 <- gcdetails_live_bytes . gc <$> getRTSStats
+  let grownKiB = (fromIntegral live1 - fromIntegral live0) `div` 1024 :: Integer
+  expect (grownKiB < 1024)
+    ("live heap grew " <> show grownKiB <> " KiB over 10k cycles (leak)")
+
+  putStrLn "keel-abi: managed-layer lifecycle tests passed (8 scenarios)"
   where
     poke' o = poke o emptyArrowArray
     nextLen st stp = withArrowArrayImport $ \ao -> do

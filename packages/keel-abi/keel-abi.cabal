@@ -50,6 +50,7 @@ test-suite keel-abi-managed
     type:             exitcode-stdio-1.0
     main-is:          Managed.hs
     hs-source-dirs:   test
+    ghc-options:      -with-rtsopts=-T
     build-depends:
         base,
         keel-abi

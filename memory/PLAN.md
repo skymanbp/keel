@@ -26,10 +26,10 @@ Ship a Windows-first capability and interop floor for Haskell data science, neve
 3. [!] **Publish the positioning Discourse post and the repo hygiene files** — Hygiene files done; Discourse draft deferred by owner (if ever published, cite fork CI results, no PR link)
 4. [x] **Rule on the P0 hard gate before writing any library code** — Gate RULED PASSED 2026-08-18: Windows builds green locally + 4/4 fork CI lanes; CI-PR half moot after scope change (Q11)
 5. [x] **Ship keel-dyn 0.1 to Hackage as a standalone runtime dynamic loader** — DONE (local dev) 2026-08-18: Keel.Dyn.Locate (env override -> XDG/APPDATA data dir -> system, override authoritative no-fallback), Capability record + requireSym + Exception DynError, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR for absolute paths; haddock 100% on both exposed modules; tests PASS on Windows GHC 9.12.4 + 9.14.1. Hackage upload + POSIX run + 9.10.3 floor verify roll into publish stage (step 11)
-6. [~] **Ship keel-abi 0.1: Arrow C Data/Stream both ways plus DLPack exchange**  ← ACTIVE — Started 2026-08-18. Local dev: Storable structs (no cbits in library), test-only _Static_assert offsetof gate, pyarrow round-trip local; 3-OS CI at publish stage. (Pre-scope-change note about offering inbound half to dataframe-core as PR: parked, needs owner sign-off)
+6. [x] **Ship keel-abi 0.1: Arrow C Data/Stream both ways plus DLPack exchange** — DONE (local dev) 2026-08-18: 4 modules (Arrow/DLPack x raw/managed, zero cbits), _Static_assert+runtime layout gate (8 structs), pyarrow 24.0 conformance 4 directions (arrays+streams, both ways, in-process CPython via keel-dyn), numpy 2.3.5 DLPack v1.x round-trip both ways, StablePtr leak gate (10k cycles, live-bytes flat), haddock 100%, green on GHC 9.12.4+9.14.1 Windows. Hackage + 3-OS CI + valgrind lane at publish stage (step 11). (Pre-scope-change note about offering inbound half to dataframe-core as PR: parked, needs owner sign-off)
 7. [ ] **Recruit one design partner who actually needs ONNX inference in Haskell** — Q10 precondition for P3; if none, P5 moves up
 8. [ ] **Ship keel-onnx 0.1 with the end-to-end train-in-Python run-on-Windows demo** — P3 headline; inference only, MIT, resolved at runtime
-10. [ ] **Ship keel-linalg 0.1 with immutable backend pin and the named hazard tests** — P5; LP64/ILP64 probe, symbol drift, Windows DLL deps
+10. [~] **Ship keel-linalg 0.1 with immutable backend pin and the named hazard tests**  ← ACTIVE — Started 2026-08-18 (P5 moved up per Q10 rule: no design partner yet, owner has outward actions paused). LP64/ILP64 probe, symbol drift, Windows DLL deps, SciPy 1e-10 oracle
 11. [ ] **Ship the keel umbrella, doctor, setup, docs, Stackage entry and announcement** — Single publish stage at the end: GitHub repo + 3-OS CI + Hackage + Stackage nightly; Discourse optional
 12. [ ] **Hold the governance gate: two maintainers before any 1.0** — P7 ongoing; stable/unstable API split, deprecation policy
 
@@ -39,9 +39,9 @@ Incumbent DataHaskell/dataframe (bus factor 1) owns the pandas/sklearn/plot tier
 
 ## Status
 
-- Progress: 3/10 steps done
-- Active step: #6
-- Last refined: 2026-08-18T02:44:20 (plan-refiner)
+- Progress: 4/10 steps done
+- Active step: #10
+- Last refined: 2026-08-18T07:23:27 (plan-refiner)
 - Last guardian check: 2026-08-18T02:16:20
 - Edits since last check: 0
 - Turns since last check: 0
