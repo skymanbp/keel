@@ -9,3 +9,9 @@ packages:
     packages/keel-linalg
     packages/keel-onnx
     packages/keel
+
+-- Reproducible dependency resolution, and a guard against Hackage CDN
+-- serving a stale incremental index (seen on CI: an index frozen at
+-- 2025-09 made dataframe-core an "unknown package"). With a pinned
+-- index-state, a stale mirror fails loudly instead.
+index-state: 2026-08-17T22:49:30Z
