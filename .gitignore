@@ -1,0 +1,4 @@
+# plugin/session state
+.ce/
+# cabal build artifacts
+dist-newstyle/
