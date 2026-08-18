@@ -54,6 +54,14 @@ data Ops = Ops
            -> Double -> Ptr Double -> CInt  -- beta, C, ldc
            -> IO ()
            )
+  , opDgesv
+      :: FunPtr
+           (  CInt -> CInt -> CInt          -- layout, n, nrhs
+           -> Ptr Double -> CInt            -- A (overwritten with LU), lda
+           -> Ptr CInt                      -- ipiv
+           -> Ptr Double -> CInt            -- B (overwritten with X), ldb
+           -> IO CInt                       -- info
+           )
   , opSetNumThreads :: Maybe (FunPtr (CInt -> IO ()))
     -- ^ @openblas_set_num_threads@ — optional so its absence degrades
     -- only thread control, not the backend.
@@ -140,8 +148,9 @@ assemble :: Library -> String -> IO (Either BackendError Backend)
 assemble lib cfg = do
   ddotR <- resolveSym lib "cblas_ddot"
   dgemmR <- resolveSym lib "cblas_dgemm"
+  dgesvR <- resolveSym lib "LAPACKE_dgesv"
   threadsM <- resolveOptional lib "openblas_set_num_threads"
-  case Ops <$> ddotR <*> dgemmR <*> pure threadsM of
+  case Ops <$> ddotR <*> dgemmR <*> dgesvR <*> pure threadsM of
     Left e -> do
       closeLibrary lib
       pure (Left (BackendMissingSymbol e))

@@ -1,45 +1,19 @@
--- | Smoke tests against a real OpenBLAS: backend discovery + probe
--- machinery, then exact-value checks (small integer inputs stay exact
--- in double precision, so equality is legitimate here).
---
--- Discovery order: 'openBackend' (env \/ data dir \/ system search); if
--- that misses, a python site-packages sweep for a standard-symbol
--- OpenBLAS wheel DLL (faiss ships one on Windows) is tried through the
--- @KEEL_OPENBLAS@ override. No backend found => SKIP, unless
--- @KEEL_LINALG_REQUIRE_OPENBLAS@ is set (publish-stage CI sets it,
--- with a stock OpenBLAS installed).
+-- | Smoke tests against a real OpenBLAS: probe machinery plus
+-- exact-value checks (small integer inputs stay exact in double
+-- precision, so equality is legitimate here). Backend discovery and the
+-- SKIP-vs-require policy live in "TestBackend".
 module Main (main) where
 
-import Control.Exception (IOException, try)
+import Control.Exception (try)
 import Control.Monad (unless)
 import Data.Vector.Storable qualified as VS
-import System.Environment (lookupEnv, setEnv)
-import System.Exit (ExitCode (..))
-import System.Process (readProcessWithExitCode)
 
 import Keel.Linalg
 import Keel.Linalg.Backend (isILP64Config)
+import TestBackend (withTestBackend)
 
 expect :: Bool -> String -> IO ()
 expect ok msg = unless ok (fail msg)
-
--- Ask python where a wheel-bundled, standard-symbol OpenBLAS lives.
--- (numpy/scipy wheels are symbol-renamed and useless here; faiss's is a
--- stock build.)
-findWheelOpenblas :: IO (Maybe FilePath)
-findWheelOpenblas = do
-  r <- try (readProcessWithExitCode "python" ["-c", script] "")
-        :: IO (Either IOException (ExitCode, String, String))
-  pure $ case r of
-    Right (ExitSuccess, out, _) | not (null cleaned) -> Just cleaned
-      where cleaned = filter (`notElem` "\r\n") out
-    _ -> Nothing
-  where
-    script =
-      "import glob, os, sysconfig\n\
-      \sp = sysconfig.get_paths()['purelib']\n\
-      \g = glob.glob(os.path.join(sp, 'faiss_cpu.libs', 'libopenblas*.dll'))\n\
-      \print(g[0] if g else '')\n"
 
 main :: IO ()
 main = do
@@ -50,23 +24,7 @@ main = do
   expect (not (isILP64Config "OpenBLAS 0.3.30 DYNAMIC_ARCH NO_AFFINITY Cooperlake"))
     "LP64 config misclassified as ILP64"
 
-  first <- openBackend
-  opened <- case first of
-    Right be -> pure (Just be)
-    Left _ -> do
-      wheel <- findWheelOpenblas
-      case wheel of
-        Nothing -> pure Nothing
-        Just dll -> do
-          setEnv "KEEL_OPENBLAS" dll
-          either (const Nothing) Just <$> openBackend
-  required <- lookupEnv "KEEL_LINALG_REQUIRE_OPENBLAS"
-  case opened of
-    Nothing -> case required of
-      Just v | v /= "" && v /= "0" ->
-        fail "KEEL_LINALG_REQUIRE_OPENBLAS set but no usable OpenBLAS found"
-      _ -> putStrLn "keel-linalg-smoke: SKIP - no standard-symbol OpenBLAS on this machine"
-    Just be -> run be
+  withTestBackend "KEEL_LINALG_REQUIRE_OPENBLAS" run
 
 run :: Backend -> IO ()
 run be = do
@@ -94,5 +52,19 @@ run be = do
   c3 <- dgemm be NoTrans NoTrans 1 1 3 2 (VS.fromList [1, 2, 3]) (VS.fromList [4, 5, 6])
   expect (VS.toList c3 == [64]) ("dgemm alpha: " <> show (VS.toList c3))
 
-  closeBackend be
+  -- dgesv: [[2,0],[0,4]] x = [3,8] -> x = [1.5, 2] (exact for powers of 2)
+  s1 <- dgesv be 2 1 (VS.fromList [2, 0, 0, 4]) (VS.fromList [3, 8])
+  case s1 of
+    Right x -> expect (VS.toList x == [1.5, 2]) ("dgesv: " <> show (VS.toList x))
+    Left i -> fail ("dgesv reported singular at " <> show i)
+
+  -- dgesv on an exactly singular matrix reports Left, not garbage
+  s2 <- dgesv be 2 1 (VS.fromList [1, 2, 2, 4]) (VS.fromList [1, 1])
+  expect (either (const True) (const False) s2) "singular matrix not reported"
+
+  -- dgesv dimension mismatch must throw before calling LAPACK
+  s3 <- try (dgesv be 2 1 (VS.fromList [1, 2, 3]) (VS.fromList [1, 1]))
+        :: IO (Either LinalgError (Either Int (VS.Vector Double)))
+  expect (either (const True) (const False) s3) "dgesv bad dims not rejected"
+
   putStrLn "keel-linalg-smoke: all checks passed against a real OpenBLAS"

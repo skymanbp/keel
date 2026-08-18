@@ -26,6 +26,9 @@ module Keel.Linalg
     -- * Level 3
   , Transpose (..)
   , dgemm
+
+    -- * LAPACK drivers
+  , dgesv
   ) where
 
 import Control.Exception (Exception, throwIO)
@@ -38,8 +41,14 @@ import Foreign.Ptr (FunPtr, Ptr)
 import Keel.Dyn (capOps)
 import Keel.Linalg.Backend
 
--- | Argument validation failures, thrown before any foreign call.
-newtype LinalgError = DimensionMismatch String
+-- | Programming errors — thrown, never returned. Data-dependent
+-- conditions (like a singular matrix) come back as @Either@ instead.
+data LinalgError
+  = DimensionMismatch String
+    -- ^ Operand sizes disagree; raised before any foreign call.
+  | LapackBadArgument String Int
+    -- ^ LAPACKE rejected argument /i/ (negative @info@) despite our
+    -- validation — indicates a bug in these bindings, please report.
   deriving (Eq, Show)
 
 instance Exception LinalgError
@@ -119,3 +128,55 @@ dgemm be ta tb m n k alpha a b = do
           (fromIntegral m) (fromIntegral n) (fromIntegral k)
           alpha pa lda pb ldb 0 pc ldc
   VS.unsafeFreeze c
+
+foreign import ccall safe "dynamic"
+  callDgesv
+    :: FunPtr
+         (  CInt -> CInt -> CInt
+         -> Ptr Double -> CInt
+         -> Ptr CInt
+         -> Ptr Double -> CInt
+         -> IO CInt
+         )
+    -> CInt -> CInt -> CInt
+    -> Ptr Double -> CInt
+    -> Ptr CInt
+    -> Ptr Double -> CInt
+    -> IO CInt
+
+-- | Solve @A X = B@ for square @A@ via LU with partial pivoting
+-- (@LAPACKE_dgesv@). @A@ is @n x n@, @B@ is @n x nrhs@, both row-major
+-- compact; inputs are copied, not overwritten. @Left i@ reports exact
+-- singularity detected at @U(i,i)@ (1-based) — a data condition, not an
+-- exception. This driver requires the backend; there is no pure-Haskell
+-- fallback.
+dgesv
+  :: Backend
+  -> Int -- ^ n
+  -> Int -- ^ nrhs
+  -> VS.Vector Double -- ^ A
+  -> VS.Vector Double -- ^ B
+  -> IO (Either Int (VS.Vector Double))
+dgesv be n nrhs a b = do
+  unless (VS.length a == n * n) . throwIO . DimensionMismatch $
+    "dgesv: A has " <> show (VS.length a) <> " elements, want n*n = " <> show (n * n)
+  unless (VS.length b == n * nrhs) . throwIO . DimensionMismatch $
+    "dgesv: B has " <> show (VS.length b) <> " elements, want n*nrhs = " <> show (n * nrhs)
+  aCopy <- VS.thaw a
+  bCopy <- VS.thaw b
+  ipiv <- VSM.new n :: IO (VSM.IOVector CInt)
+  info <-
+    VSM.unsafeWith aCopy $ \pa ->
+      VSM.unsafeWith bCopy $ \pb ->
+        VSM.unsafeWith ipiv $ \pp ->
+          callDgesv (opDgesv (capOps be))
+            lapackRowMajor (fromIntegral n) (fromIntegral nrhs)
+            pa (fromIntegral n) pp pb (fromIntegral nrhs)
+  case compare info 0 of
+    EQ -> Right <$> VS.unsafeFreeze bCopy
+    GT -> pure (Left (fromIntegral info))
+    LT -> throwIO (LapackBadArgument "dgesv" (negate (fromIntegral info)))
+
+-- LAPACK_ROW_MAJOR (lapacke.h, frozen ABI)
+lapackRowMajor :: CInt
+lapackRowMajor = 101

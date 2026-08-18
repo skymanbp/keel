@@ -40,6 +40,19 @@ test-suite keel-linalg-smoke
     import:           warnings
     type:             exitcode-stdio-1.0
     main-is:          Smoke.hs
+    other-modules:    TestBackend
+    hs-source-dirs:   test
+    build-depends:
+        base,
+        keel-linalg,
+        process >=1.6 && <1.7,
+        vector
+
+test-suite keel-linalg-oracle
+    import:           warnings
+    type:             exitcode-stdio-1.0
+    main-is:          Oracle.hs
+    other-modules:    TestBackend
     hs-source-dirs:   test
     build-depends:
         base,
