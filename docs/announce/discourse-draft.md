@@ -1,7 +1,8 @@
 # Discourse post draft (Haskell Discourse)
 
 > Status: DRAFT — publish only on owner's go-ahead. Suggested timing:
-> right after the Hackage 0.1 batch lands, so every link below resolves.
+> right after the Hackage 0.1 batch lands, so readers can cabal-install
+> the packages named here.
 > Every claim in this draft is backed by CI runs on the public repo.
 
 **Title:** keel: a capability floor for Haskell data science (not a new dataframe)

@@ -18,8 +18,8 @@ jobs:
         ghc: ['9.10.3', '9.12.4', '9.14.1']
     # Conformance suites SKIP when a dependency is missing; on CI every
     # dependency is provisioned, so a SKIP is a regression — require them.
-    # (Windows has no OpenBLAS source yet, so the linalg REQUIREs are set
-    # only where OpenBLAS is installed below.)
+    # (The linalg REQUIREs are set per-OS by the OpenBLAS install steps
+    # below — apt on Linux, brew on macOS, keel setup on Windows.)
     env:
       KEEL_ABI_REQUIRE_PYARROW: '1'
       KEEL_ABI_REQUIRE_NUMPY: '1'

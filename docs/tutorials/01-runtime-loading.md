@@ -82,9 +82,11 @@ This is exactly how `keel-linalg` and `keel-onnx` are built.
 
 ## Sharp edges handled for you
 
-- Windows loads use `LOAD_LIBRARY_SEARCH_DEFAULT_DIRS` (CWD excluded — a
-  classic DLL-planting hazard), with the DLL's own directory added for
-  absolute paths so multi-DLL packages find their siblings.
+- Windows loads try `LOAD_LIBRARY_SEARCH_DEFAULT_DIRS` first (CWD excluded —
+  a classic DLL-planting hazard), with the DLL's own directory added for
+  absolute paths so multi-DLL packages find their siblings, then fall back to
+  the legacy `LoadLibraryW` search (PATH, CWD) so bare names on PATH keep
+  working.
 - `loadLibraryGlobal` exposes a library's symbols to later loads
   (`RTLD_GLOBAL`) — needed e.g. when embedding CPython, whose extension
   modules expect Python's symbols to be process-visible.

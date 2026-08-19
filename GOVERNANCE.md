@@ -27,6 +27,6 @@ maintainer and an unbounded surface (see [PLAN.md](PLAN.md) §1.4).
 
 | Package | Maintainers |
 |---|---|
-| all (pre-0.1) | Zhe Zhang (@skymanbp) |
+| all (0.1.x) | Zhe Zhang (@skymanbp) |
 
 Second maintainer seats are open — see [CONTRIBUTING.md](CONTRIBUTING.md).

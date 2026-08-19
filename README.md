@@ -41,7 +41,11 @@ upstream-repo work outside this project.
 
 ## Status
 
-Pre-release, not yet on Hackage. **P0 (falsification) passed 2026-08-18**: the
+**v0.1.0.0 is released on GitHub** —
+[tag + sdists](https://github.com/skymanbp/keel/releases/tag/v0.1.0.0);
+the Hackage upload is pending uploader-group approval. Until it lands,
+install from the Release sdists or point a `source-repository-package`
+stanza at this repo. **P0 (falsification) passed 2026-08-18**: the
 dataframe stack builds on Windows 11 locally and on CI —
 [docs/p0/BUILD-REPORT.md](docs/p0/BUILD-REPORT.md).
 
@@ -54,8 +58,7 @@ every keel-linalg driver is cross-checked against numpy/LAPACK to 1e-10;
 the headline demo — train in scikit-learn, export with skl2onnx, run in
 Haskell — agrees with python's own onnxruntime to 1e-6; and CI installs
 OpenBLAS on Windows through `keel setup blas` itself, end-to-end.
-Start with the [tutorials](docs/tutorials/). Remaining before Hackage:
-release polish ([PLAN.md](PLAN.md) §5). Research provenance for every
+Start with the [tutorials](docs/tutorials/). Research provenance for every
 claim: [docs/research/](docs/research/).
 
 ## License

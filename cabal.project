@@ -1,6 +1,7 @@
 -- The keel workspace: four capability packages plus the umbrella.
--- Dependency direction is strictly keel-dyn -> {keel-abi, keel-onnx,
--- keel-linalg} -> keel; the umbrella is the only package that will
+-- Dependency direction is strictly keel-dyn -> {keel-onnx, keel-linalg}
+-- -> keel; keel-abi's library stands alone on base (keel-dyn appears
+-- only in its test suites). The umbrella is the only package that will
 -- ever depend on dataframe-core (Hackage), and only for the explicit
 -- frame<->buffer copy bridge.
 packages:

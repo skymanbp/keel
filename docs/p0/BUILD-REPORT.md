@@ -48,8 +48,8 @@ a 31-character base (`--builddir`) made run 1b pass with zero other changes.
   project trees) can push cabal's unpack tmp over 260 chars and fail on *any*
   dependency shipping long test filenames. Worth one line in upstream's docs:
   clone shallow paths, or enable Windows long paths, or use `--builddir`.
-- **For keel:** same line goes in our own docs; `keel doctor` gets a
-  path-length check.
+- **For keel:** the v0.1.0.0 release notes carry this tip; a `keel doctor`
+  path-length check remains an open item.
 
 ## Fork CI results (2026-08-18)
 
@@ -83,13 +83,16 @@ Suites `learn-internal`, `packed-text` and `dataframe-parsing` pass on Windows.
 
 **P0 gate reading:** the build half of the Windows thesis is confirmed on both
 the local machine and CI; the discovered test failures are the strongest
-possible argument *for* the Windows CI lanes. Upstream submission (PR/issues)
-is **paused by owner decision (2026-08-18)** pending further instruction.
+possible argument *for* the Windows CI lanes. Upstream submission happened as
+a separate DataFrame-repo effort: DataHaskell/dataframe#212 (Windows test
+portability) is merged; #213 (shipped-code portability + Windows/macOS CI
+lanes) and #214 (null handling + numeric correctness) were submitted
+2026-08-19.
 
 ## Reproduction
 
-Logs: `p0_build.log` (runs 1a + 2), `p0_source_rerun.log` (run 1b) — archived
-from the session scratchpad. Smoke project: a fresh cabal executable depending
+Logs: `p0_build.log` (runs 1a + 2), `p0_source_rerun.log` (run 1b) — kept
+outside the repo; the fork CI run below is the reproducible evidence. Smoke project: a fresh cabal executable depending
 on the four Hackage releases above, `main = putStrLn "keel p0 smoke ok"` plus
 imports forcing the closure. Fork CI evidence:
 https://github.com/skymanbp/dataframe/actions/runs/32095552668

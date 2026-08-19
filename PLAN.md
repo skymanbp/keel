@@ -5,6 +5,10 @@
 **Product name: `keel`** (decided 2026-08-17) — packages `keel-dyn` / `keel-abi` /
 `keel-onnx` / `keel-linalg` + umbrella `keel`; repo codename HSDS retired when the repo folder was renamed to keel on 2026-08-18.
 
+**Status (2026-08-19):** all five packages shipped at 0.1.0.0 — GitHub Release
+live (tag `v0.1.0.0`, five sdists); Hackage upload pending uploader-group
+approval.
+
 Research completed and all load-bearing facts verified against primary sources on
 2026-08-17 (13-agent research/design/adversarial-critique workflow; three key facts
 re-verified first-party: see §9 Provenance). Every dated claim below carries its
@@ -225,8 +229,9 @@ Haskell lacks entirely. Two mandatory soundness corrections are baked into §4.
    no wheel/conda layer, and it is what makes Windows-first real.
 2. **Bind, don't reimplement numerics.** Kernels come from OpenBLAS and ONNX Runtime.
    Haskell owns shape logic, ownership, ergonomics.
-3. **Never compete with the incumbent.** Gaps in dataframe/* are closed by finished,
-   tested PRs that close issues the maintainer already filed — never by rival packages.
+3. **Never compete with the incumbent.** Gaps and bugs in dataframe/* are
+   reported upstream; fixing them is separate DataFrame-repo work outside keel
+   (§7.1 Q11) — never a rival package.
 4. **Simple Haskell.** `default-language: GHC2021` declared explicitly in every stanza
    (GHC 10.0 silently defaults to GHC2024). No LinearTypes, no OverloadedRecordUpdate,
    no required Template Haskell, no typechecker plugins, no dependent-types bets.
@@ -261,8 +266,7 @@ gap. Hand-written `Storable` instances for the frozen structs → shipped librar
 import → `ForeignPtr` with the C release callback as finalizer; export → release
 callback via `foreign import ccall "wrapper"` freeing a `StablePtr` keep-alive;
 borrow → `bracket`. Conformance: pyarrow round-trips both directions in CI on all
-three OSes; leak assertions under `+RTS -s`; valgrind on the Linux lane. The inbound
-half is offered to dataframe-core as a PR the moment it works.
+three OSes; leak assertions under `+RTS -s`; valgrind on the Linux lane.
 
 **A3. `keel-onnx` — the headline.** MIT ONNX Runtime *inference* bindings resolved at
 runtime through `OrtGetApiBase()` → struct of function pointers (the C API is designed
@@ -289,7 +293,7 @@ both `openblas` and `openblas64`; getting it wrong silently corrupts results abo
 2^31), symbol-presence drift across BLAS implementations (lazy per-symbol resolution),
 Windows DLL transitive deps (ship libgcc_s_seh-1/libgfortran/etc. if the OpenBLAS zip
 doesn't), `OPENBLAS_NUM_THREADS=1` default vs the GHC RTS scheduler. Every operation
-cross-checked against SciPy in CI to 1e-10 relative error on random and
+cross-checked against numpy in CI to 1e-10 relative error on random and
 ill-conditioned inputs.
 
 ### Tier B — REMOVED from scope (owner decision, 2026-08-18)
@@ -299,8 +303,9 @@ typing, hyperparameter reflection, schema diffs, Arrow donation, IHaskell
 release, benchmark verification) is no longer part of this project.
 dataframe is consumed strictly as a Hackage dependency. The three Windows
 bugs our fork CI discovered (hardcoded /tmp; CRLF roundtrip x2;
-quote-spans-boundary — docs/p0/BUILD-REPORT.md) will be fixed via a
-SEPARATE DataFrame-repo effort with its own plan, unrelated to keel.
+quote-spans-boundary — docs/p0/BUILD-REPORT.md) were fixed via a
+SEPARATE DataFrame-repo effort with its own plan, unrelated to keel
+(DataHaskell/dataframe#212 merged; #213/#214 submitted 2026-08-19).
 Unchanged principle: keel never ships a rival implementation of anything
 the dataframe stack provides.
 
@@ -409,7 +414,7 @@ R interop, or a curated library inventory.
   Hackage on a clean Windows box with no MSYS2 pacman step, forever.
 - **License:** MIT recommended (matches dataframe → code moves upstream
   frictionlessly). See §7 Q8 for the Apache-2.0 patent-grant trade-off.
-- **Testing oracle:** a Python CI job (pyarrow, numpy, scipy, scikit-learn) cross-
+- **Testing oracle:** a Python CI job (pyarrow, numpy, scikit-learn) cross-
   checks every numerical and interop claim.
 
 ---
@@ -431,10 +436,10 @@ R interop, or a curated library inventory.
 | # | Question | Recommendation |
 |---|---|---|
 | Q4 | ONNX ceiling: inference-only permanently, or eventual training intent (forces hasktorch [no Windows] or a self-built AD [historically fatal])? | Inference-only, stated up front: "train where the ecosystem is, run where your types are" |
-| Q5 | Storable column upstream surgery (the real zero-copy fix; months of work on someone else's core type, no keel-branded artifact) | Defer; raise with mchav only after B-track PRs establish trust |
+| Q5 | Storable column upstream surgery (the real zero-copy fix; months of work on someone else's core type, no keel-branded artifact) | Defer; no upstream track exists in this project (Q11) |
 | Q7 | Success metric: accept "single-digit external dependents + landed PRs" as success? | Yes — anything else is self-deception per the adoption data |
 | Q8 | License: MIT vs Apache-2.0 (explicit patent grant, relevant for bindings to a Microsoft-owned runtime) | MIT, for upstream mobility |
-| Q9 | IHaskell maintenance labor (B8): pure upstream work, possible co-maintenance burden | Do it once, bounded; decline standing co-maintenance unless the project thrives |
+| Q9 | IHaskell maintenance labor (B8): pure upstream work, possible co-maintenance burden | Moot since Q11 — no upstream work in scope |
 | Q10 | Find a design partner running production Haskell who needs ONNX inference BEFORE P3? | Yes — one conversation; if none exists, P3's justification weakens and P5 moves up |
 
 ---
@@ -444,8 +449,9 @@ R interop, or a curated library inventory.
 1. **Incumbent churn** (68 releases; 3 majors in 5 months): depend only on granular
    subpackages (`dataframe-core`, `dataframe-operations`) with tight `>=x.y && <x.(y+1)`
    bounds; funnel every upstream call through one internal Compat module.
-2. **Read as a competitor / community split:** behavioral mitigation — B-track PRs
-   land before anything that looks like a surface; README opens with the disclaimer.
+2. **Read as a competitor / community split:** behavioral mitigation — the README
+   opens with the disclaimer, and keel ships no rival implementation of anything
+   the dataframe stack provides.
 3. **Dynamic loading sharp edges** (ILP64, symbol drift, DLL search path, thread-pool
    contention, bad DLL = process crash): each has a named test in P5; per-symbol lazy
    resolution everywhere.

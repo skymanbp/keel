@@ -10,7 +10,7 @@ description:
       on this machine, which do not, and the one command that fixes
       each;
     * @keel setup@ — checksum-pinned installation of native runtimes
-      into the per-user keel directory (in progress).
+      into the per-user keel directory.
     .
     keel is deliberately NOT a dataframe, a schema layer, an estimator
     protocol, or a numeric prelude — see the project README.

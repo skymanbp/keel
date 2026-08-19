@@ -21,7 +21,7 @@ if it is empty, open an issue asking for one.
   lane; "works on Linux" is half a review.
 - `default-language: GHC2021` explicitly, in every stanza. No LinearTypes, no
   OverloadedRecordUpdate, no required Template Haskell, no typechecker plugins.
-- Numerical claims are tested against the Python oracle job (SciPy / pyarrow /
+- Numerical claims are tested against the Python oracle job (numpy / pyarrow /
   scikit-learn) — a kernel PR without an oracle test is not reviewable.
 - New scope (a new package, a new subsystem) is not a PR — it is a discussion
   with the owner first. See the frozen-scope rule in GOVERNANCE.md.
