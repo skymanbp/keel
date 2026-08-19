@@ -41,11 +41,15 @@ upstream-repo work outside this project.
 
 ## Status
 
-**v0.1.0.0 is released on GitHub** —
-[tag + sdists](https://github.com/skymanbp/keel/releases/tag/v0.1.0.0);
-the Hackage upload is pending uploader-group approval. Until it lands,
-install from the Release sdists or point a `source-repository-package`
-stanza at this repo. **P0 (falsification) passed 2026-08-18**: the
+**v0.1.0.0 is on Hackage** —
+[keel](https://hackage.haskell.org/package/keel) /
+[keel-dyn](https://hackage.haskell.org/package/keel-dyn) /
+[keel-abi](https://hackage.haskell.org/package/keel-abi) /
+[keel-linalg](https://hackage.haskell.org/package/keel-linalg) /
+[keel-onnx](https://hackage.haskell.org/package/keel-onnx) —
+so `cabal install keel` works directly; the
+[GitHub Release](https://github.com/skymanbp/keel/releases/tag/v0.1.0.0)
+mirrors the sdists. **P0 (falsification) passed 2026-08-18**: the
 dataframe stack builds on Windows 11 locally and on CI —
 [docs/p0/BUILD-REPORT.md](docs/p0/BUILD-REPORT.md).
 
