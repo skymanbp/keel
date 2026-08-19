@@ -13,6 +13,9 @@ description:
     vendored @onnxruntime_c_api.h@ (v1.24.4) by a /test-suite-only/ C
     gate — the ABI contract is that slots are append-only, so any
     runtime >= the pinned API version serves them at the same indices.
+    .
+    The vendored headers are Microsoft's, MIT-licensed; their license
+    text ships alongside as @LICENSE.onnxruntime@.
 license:            MIT
 license-file:       LICENSE
 author:             Zhe Zhang
@@ -21,8 +24,11 @@ category:           Machine Learning, Foreign
 build-type:         Simple
 homepage:           https://github.com/skymanbp/keel
 bug-reports:        https://github.com/skymanbp/keel/issues
-extra-doc-files:    CHANGELOG.md
+extra-doc-files:
+    CHANGELOG.md
+    README.md
 extra-source-files:
+    LICENSE.onnxruntime
     test/cbits/vendor/onnxruntime_c_api.h
     test/cbits/vendor/onnxruntime_ep_c_api.h
 tested-with:        GHC ==9.10.3 || ==9.12.4 || ==9.14.1

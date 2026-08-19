@@ -19,7 +19,9 @@ category:           System, Foreign
 build-type:         Simple
 homepage:           https://github.com/skymanbp/keel
 bug-reports:        https://github.com/skymanbp/keel/issues
-extra-doc-files:    CHANGELOG.md
+extra-doc-files:
+    CHANGELOG.md
+    README.md
 tested-with:        GHC ==9.10.3 || ==9.12.4 || ==9.14.1
 
 source-repository head

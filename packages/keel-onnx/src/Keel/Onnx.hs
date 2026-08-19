@@ -44,20 +44,20 @@ module Keel.Onnx
   , runFloats
   ) where
 
-import Control.Exception (Exception, bracket, throwIO)
+import Control.Exception (Exception, bracket, finally, throwIO)
 import Data.ByteString qualified as BS
 import Data.ByteString.Unsafe qualified as BSU
 import Data.Int (Int64)
 import Data.Vector.Storable qualified as VS
+import Data.Vector.Storable.Mutable qualified as VSM
 import Data.Word (Word32)
 import Foreign.C.String (CString, peekCString, withCString)
 import Foreign.C.Types (CInt (..), CSize (..))
-import Foreign.Concurrent qualified as FC
-import Foreign.ForeignPtr (castForeignPtr)
 import Foreign.Marshal.Alloc (alloca)
 import Foreign.Marshal.Array (allocaArray, peekArray, pokeArray, withArray)
+import Foreign.Marshal.Utils (copyBytes)
 import Foreign.Ptr (FunPtr, Ptr, castPtr, nullPtr)
-import Foreign.Storable (peek, poke)
+import Foreign.Storable (peek, poke, sizeOf)
 import System.Info (os)
 
 import Keel.Dyn
@@ -74,8 +74,8 @@ data OnnxError
     -- ^ No ONNX Runtime library was found by the search policy, or it
     -- exports no @OrtGetApiBase@.
   | OnnxApiUnsupported Word32
-    -- ^ The runtime is older than the pinned 'ortApiVersion' and
-    -- refused to serve the table.
+    -- ^ The runtime refused to serve the 'ortApiVersion' table (it
+    -- would have to predate ORT 1.0 to do so).
   | OrtError String Int String
     -- ^ An ORT call failed: context, @OrtErrorCode@, and the runtime's
     -- own message.
@@ -292,7 +292,10 @@ mkOps api =
     <*> apiSlot api slotReleaseTensorTypeAndShapeInfo
     <*> apiSlot api slotReleaseSessionOptions
 
--- | Drop the pin. All handles derived from this 'Ort' become invalid.
+-- | Drop the pin and unload the library. Nothing derived from this
+-- 'Ort' — environments, sessions, calls in flight — may be used
+-- afterwards; 'OnnxTensor' results are plain Haskell data and stay
+-- valid.
 closeOnnxRuntime :: Ort -> IO ()
 closeOnnxRuntime = closeLibrary . capLibrary
 
@@ -459,10 +462,10 @@ outputInfos = infosOf "SessionGetOutputTypeInfo" oSessionGetOutputCount oSession
 -- ---------------------------------------------------------------------
 -- Inference
 
--- | An output tensor: shape plus data. The data vectors are /zero-copy
--- views/ of ORT's own output buffers — the underlying @OrtValue@ is
--- released by the vector's finalizer, so the view stays valid for as
--- long as you hold it and costs nothing to obtain.
+-- | An output tensor: shape plus data. The data is copied out of ORT's
+-- output buffer and the underlying @OrtValue@ is released before
+-- 'runTensors' returns, so the vectors are ordinary Haskell-owned
+-- memory with no tie to the runtime's lifetime.
 data OnnxTensor
   = FloatTensor [Int64] (VS.Vector Float)
   | Int64Tensor [Int64] (VS.Vector Int64)
@@ -470,9 +473,9 @@ data OnnxTensor
   deriving (Eq, Show)
 
 -- | Run the model: named float32 inputs (shape + row-major data,
--- zero-copy into ORT) to named outputs (zero-copy out, see
--- 'OnnxTensor'). Output element types other than float32\/int64\/double
--- throw 'OnnxTypeMismatch'.
+-- zero-copy into ORT) to named outputs (copied out, see 'OnnxTensor').
+-- Output element types other than float32\/int64\/double throw
+-- 'OnnxTypeMismatch'.
 runTensors
   :: Session
   -> [(String, [Int64], VS.Vector Float)] -- ^ inputs
@@ -499,9 +502,17 @@ runTensors (Session ort sess) inputs outNames =
                             outNameArr (fromIntegral nOut) outValArr
                     outVals <- peekArray nOut outValArr
                     mapM (readValue ops) outVals
+                      `finally` mapM_ (releaseValue ops) outVals
   where
     ops = capOps ort
     nOut = length outNames
+
+-- Every output OrtValue is released here, exactly once, whether or not
+-- reading any of them succeeded.
+releaseValue :: OrtOps -> Ptr OrtValueT -> IO ()
+releaseValue ops val
+  | val == nullPtr = pure ()
+  | otherwise = callP_V (oReleaseValue ops) val
 
 -- | 'runTensors' restricted to float32 outputs (the common
 -- regression\/probability case).
@@ -551,10 +562,9 @@ withCStrings = go []
     go acc [] k = k (reverse acc)
     go acc (s : rest) k = withCString s $ \cs -> go (cs : acc) rest k
 
--- Take ownership of an output OrtValue and expose its buffer as a
--- zero-copy vector: the ForeignPtr wraps the data pointer, its
--- finalizer releases the OrtValue. On an unsupported element type the
--- value is released immediately and 'OnnxTypeMismatch' is thrown.
+-- Read an output OrtValue into a Haskell-owned copy. Ownership stays
+-- with the caller — 'runTensors' releases every output value whether
+-- reading succeeded or not — so this never releases @val@.
 readValue :: OrtOps -> Ptr OrtValueT -> IO OnnxTensor
 readValue ops val = do
   (ety, dims, count) <-
@@ -583,14 +593,14 @@ readValue ops val = do
     checkStatus ops "GetTensorMutableData"
       =<< callPP_S (oGetTensorMutableData ops) val out
     peek out
-  let view :: VS.Storable a => IO (VS.Vector a)
-      view = do
-        fp <- FC.newForeignPtr (castPtr dp) (callP_V (oReleaseValue ops) val)
-        pure (VS.unsafeFromForeignPtr0 (castForeignPtr fp) count)
+  let copyOut :: forall a. VS.Storable a => IO (VS.Vector a)
+      copyOut = do
+        mv <- VSM.new count
+        VSM.unsafeWith mv $ \dst ->
+          copyBytes dst (castPtr dp) (count * sizeOf (undefined :: a))
+        VS.unsafeFreeze mv
   case () of
-    _ | ety == onnxElementFloat -> FloatTensor dims <$> view
-      | ety == onnxElementInt64 -> Int64Tensor dims <$> view
-      | ety == onnxElementDouble -> DoubleTensor dims <$> view
-      | otherwise -> do
-          callP_V (oReleaseValue ops) val
-          throwIO (OnnxTypeMismatch "runTensors output" (fromIntegral ety))
+    _ | ety == onnxElementFloat -> FloatTensor dims <$> copyOut
+      | ety == onnxElementInt64 -> Int64Tensor dims <$> copyOut
+      | ety == onnxElementDouble -> DoubleTensor dims <$> copyOut
+      | otherwise -> throwIO (OnnxTypeMismatch "runTensors output" (fromIntegral ety))

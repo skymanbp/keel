@@ -9,9 +9,10 @@ description:
     .
     The shipped library contains no C sources and needs no C toolchain
     beyond what GHC itself bundles: the structs are frozen ABIs, so their
-    layouts are written out by hand and a /test-suite-only/ C file of
-    @_Static_assert(offsetof(...))@ checks fails CI if they ever disagree
-    with a real C compiler on the build platform.
+    layouts are written out by hand for 64-bit pointers — the library
+    refuses to build on any other architecture — and a /test-suite-only/
+    C file of @_Static_assert(offsetof(...))@ checks fails CI if the
+    hand layouts ever disagree with a real C compiler.
 license:            MIT
 license-file:       LICENSE
 author:             Zhe Zhang
@@ -20,7 +21,9 @@ category:           Foreign, Data
 build-type:         Simple
 homepage:           https://github.com/skymanbp/keel
 bug-reports:        https://github.com/skymanbp/keel/issues
-extra-doc-files:    CHANGELOG.md
+extra-doc-files:
+    CHANGELOG.md
+    README.md
 tested-with:        GHC ==9.10.3 || ==9.12.4 || ==9.14.1
 
 source-repository head
@@ -33,6 +36,11 @@ common warnings
 
 library
     import:           warnings
+    -- the hand-written struct offsets assume sizeof(void*) == 8; on a
+    -- 32-bit target they would compile silently and corrupt memory, so
+    -- refuse to build there instead
+    if !(arch(x86_64) || arch(aarch64))
+        buildable: False
     exposed-modules:
         Keel.Abi.Arrow
         Keel.Abi.Arrow.Raw

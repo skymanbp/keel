@@ -19,6 +19,7 @@ module Keel.Bridge
   ) where
 
 import Data.Text qualified as T
+import Data.Vector qualified as V
 import Data.Vector.Generic qualified as VG
 import Data.Vector.Storable qualified as VS
 
@@ -78,8 +79,10 @@ columnsToMatrix df names = do
         )
         rest
       let k = length cols
-          vecs = map snd cols
-      Right (m, VS.generate (m * k) (\i -> (vecs !! (i `mod` k)) VS.! (i `div` k)))
+          -- boxed vector for O(1) column lookup per cell (a list here
+          -- makes the copy O(n·k²), belying the O(n·k) contract above)
+          vecs = V.fromList (map snd cols)
+      Right (m, VS.generate (m * k) (\i -> (vecs V.! (i `mod` k)) VS.! (i `div` k)))
 
 -- | O(n) copy of a Storable buffer back into a (null-free) dataframe
 -- column, e.g. to insert a keel-linalg result as a new column.

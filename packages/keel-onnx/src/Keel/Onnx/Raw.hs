@@ -112,11 +112,16 @@ data OrtTensorTypeAndShapeInfoT
 -- | Opaque tag for @OrtTypeInfo@.
 data OrtTypeInfoT
 
--- | The @ORT_API_VERSION@ these slot indices were pinned against
--- (v1.24.4). @GetApi(ortApiVersion)@ succeeds on any runtime >= 1.24
--- (the table is append-only) and returns null on older ones.
+-- | The @OrtApi@ version requested from @GetApi@: the oldest version,
+-- so that every ONNX Runtime release serves the table. Safe because
+-- the table is append-only and every slot keel-onnx uses (max index
+-- 100) has sat at its pinned index since the table was introduced —
+-- checked against the v1.1.2, v1.4.0, v1.8.1 and v1.24.4 headers, the
+-- first of which already carries 102 entries. @GetApi@ accepts the
+-- range @[1, ORT_API_VERSION]@ (probed on ORT 1.16.3 and 1.24.4, which
+-- reject only versions above their own).
 ortApiVersion :: Word32
-ortApiVersion = 24
+ortApiVersion = 1
 
 -- OrtApiBase is itself a two-slot function-pointer table:
 -- slot 0 = GetApi, slot 1 = GetVersionString.

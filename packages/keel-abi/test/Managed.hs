@@ -127,7 +127,36 @@ main = do
   dn <- readIORef dcnt
   expect (dn == 1) ("tensor cleanup ran " <> show dn <> " times, want 1")
 
-  -- 8. leak gate: 10k full export/release cycles must not grow the live
+  -- 8. a throwing cleanup must not escape into the (foreign) caller:
+  -- the struct is still marked released and the process survives
+  ecnt <- newIORef (0 :: Int)
+  ep <- callocBytes (sizeOf (undefined :: ArrowArray))
+  exportArrowArray ep emptyArrowArray
+    (modifyIORef' ecnt (+ 1) >> ioError (userError "cleanup boom"))
+  releaseArrowArray ep
+  e1 <- peek ep
+  expect (arrayRelease e1 == nullFunPtr) "throwing cleanup: release not nulled"
+  releaseArrowArray ep -- and release stays a no-op afterwards
+  en <- readIORef ecnt
+  expect (en == 1) ("throwing cleanup ran " <> show en <> " times, want 1")
+  free ep
+
+  -- 9. a throwing stream callback surfaces as errno EIO, not a crash
+  tp <- callocBytes (sizeOf (undefined :: ArrowArrayStream))
+  exportArrowArrayStream tp
+    ArrowStreamProducer
+      { producerGetSchema = \_ -> ioError (userError "schema boom")
+      , producerGetNext = \_ -> ioError (userError "next boom")
+      , producerGetLastError = pure nullPtr
+      , producerCleanup = pure ()
+      }
+  tst <- peek tp
+  trc <- withArrowSchemaImport (callStreamGetSchema (streamGetSchema tst) tp)
+  expect (trc == 5) ("throwing get_schema returned " <> show trc <> ", want 5 (EIO)")
+  releaseArrowArrayStream tp
+  free tp
+
+  -- 10. leak gate: 10k full export/release cycles must not grow the live
   -- Haskell heap (a leaked StablePtr or cleanup closure would). C-side
   -- malloc leaks are invisible here — that is the publish-stage valgrind
   -- lane's job.
@@ -144,7 +173,7 @@ main = do
   expect (grownKiB < 1024)
     ("live heap grew " <> show grownKiB <> " KiB over 10k cycles (leak)")
 
-  putStrLn "keel-abi: managed-layer lifecycle tests passed (8 scenarios)"
+  putStrLn "keel-abi: managed-layer lifecycle tests passed (10 scenarios)"
   where
     poke' o = poke o emptyArrowArray
     nextLen st stp = withArrowArrayImport $ \ao -> do

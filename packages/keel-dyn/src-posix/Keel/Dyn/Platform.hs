@@ -14,7 +14,8 @@ module Keel.Dyn.Platform
   , addSearchDir
   ) where
 
-import Control.Exception (Exception, IOException, finally, try)
+import Control.Exception (Exception, IOException, finally, mask, try)
+import Control.Monad (void)
 import Foreign.Ptr (FunPtr, castFunPtr)
 import qualified System.Posix.DynamicLinker as DL
 
@@ -55,18 +56,22 @@ loadWith flags path = do
     Left (e :: IOException) -> Left (LibraryNotFound path (show e))
     Right dl -> Right (Library dl path)
 
--- | Release the OS handle. 'FunPtr's resolved from this 'Library' must not
--- be called afterwards.
+-- | Release the OS handle, best-effort: a failed @dlclose@ is ignored —
+-- matching the Windows side, there is no recovery, and 'withLibrary'
+-- must not let a cleanup failure replace the action's own exception.
+-- 'FunPtr's resolved from this 'Library' must not be called afterwards.
 closeLibrary :: Library -> IO ()
-closeLibrary = DL.dlclose . libDL
+closeLibrary lib = void (try @IOException (DL.dlclose (libDL lib)))
 
--- | 'loadLibrary' \/ 'closeLibrary' bracket.
+-- | 'loadLibrary' \/ 'closeLibrary' bracket, async-exception-safe: the
+-- window between a successful load and the cleanup registration is
+-- masked, so a timeout cannot leak the handle.
 withLibrary :: FilePath -> (Library -> IO a) -> IO (Either DynError a)
-withLibrary path act = do
+withLibrary path act = mask $ \restore -> do
   r <- loadLibrary path
   case r of
     Left e -> pure (Left e)
-    Right lib -> (Right <$> act lib) `finally` closeLibrary lib
+    Right lib -> restore (Right <$> act lib) `finally` closeLibrary lib
 
 -- | Resolve an exported symbol to a 'FunPtr', to be invoked through a
 -- @foreign import ccall \"dynamic\"@ wrapper. The result type is the

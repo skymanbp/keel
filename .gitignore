@@ -1,5 +1,7 @@
 # plugin/session state
 .ce/
+# local credentials (Hackage token) — never commit
+.env
 # cabal build artifacts
 dist-newstyle/
 memory/

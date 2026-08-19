@@ -38,8 +38,7 @@ module Keel.Abi.Arrow
   , exportArrowArrayStream
   ) where
 
-import Control.Exception (bracket)
-import Control.Monad (join)
+import Control.Exception (SomeException, bracket, finally, mask_, try)
 import Foreign.C.String (CString)
 import Foreign.C.Types (CInt (..))
 import Foreign.Concurrent qualified as FC
@@ -66,7 +65,7 @@ withImport :: forall s a. Storable s => (Ptr s -> IO ()) -> (Ptr s -> IO a) -> I
 withImport releaseIt act =
   bracket
     (callocBytes (sizeOf (undefined :: s)))
-    (\p -> releaseIt p >> free p)
+    (\p -> releaseIt p `finally` free p)
     act
 
 -- | Zeroed 'ArrowSchema' storage for a producer to fill; released (if
@@ -84,10 +83,12 @@ withArrowArrayImport = withImport releaseArrowArray
 withArrowArrayStreamImport :: (Ptr ArrowArrayStream -> IO a) -> IO a
 withArrowArrayStreamImport = withImport releaseArrowArrayStream
 
+-- masked: an async exception between the allocation and the finalizer
+-- registration would leak the block
 mallocImport :: forall s. Storable s => (Ptr s -> IO ()) -> IO (ForeignPtr s)
-mallocImport releaseIt = do
+mallocImport releaseIt = mask_ $ do
   p <- callocBytes (sizeOf (undefined :: s))
-  FC.newForeignPtr p (releaseIt p >> free p)
+  FC.newForeignPtr p (releaseIt p `finally` free p)
 
 -- | Like 'withArrowSchemaImport' but GC-managed: the release callback
 -- (if the struct was filled) and the storage are reclaimed by the
@@ -124,20 +125,28 @@ foreign import ccall "wrapper"
 schemaReleaseTrampoline :: FunPtr (Ptr ArrowSchema -> IO ())
 schemaReleaseTrampoline = unsafePerformIO . wrapSchemaRelease $ \p -> do
   s <- peek p
-  runCleanup (schemaPrivateData s)
+  -- null the release member BEFORE the cleanup runs: the consumer then
+  -- sees the spec-mandated released state no matter what the cleanup does
   poke p s { schemaRelease = nullFunPtr, schemaPrivateData = nullPtr }
+  runCleanup (schemaPrivateData s)
 
 {-# NOINLINE arrayReleaseTrampoline #-}
 arrayReleaseTrampoline :: FunPtr (Ptr ArrowArray -> IO ())
 arrayReleaseTrampoline = unsafePerformIO . wrapArrayRelease $ \p -> do
   a <- peek p
-  runCleanup (arrayPrivateData a)
   poke p a { arrayRelease = nullFunPtr, arrayPrivateData = nullPtr }
+  runCleanup (arrayPrivateData a)
 
+-- Runs the carried cleanup and frees its StablePtr. The cleanup runs
+-- under 'try' with the exception dropped: this executes inside a
+-- callback invoked by foreign code, and a Haskell exception escaping
+-- into a C caller is undefined behaviour (in practice it aborts the
+-- process) — the C Data Interface expects release callbacks not to fail.
 runCleanup :: Ptr () -> IO ()
 runCleanup pd = do
   let sp = castPtrToStablePtr pd :: StablePtr (IO ())
-  join (deRefStablePtr sp)
+  cleanup <- deRefStablePtr sp
+  _ <- try @SomeException cleanup
   freeStablePtr sp
 
 -- | Fill @out@ as an exported schema: every field is taken from the
@@ -145,9 +154,10 @@ runCleanup pd = do
 -- the trampoline and the cleanup action. The cleanup must free whatever
 -- the template's pointers own (format\/name\/metadata strings, children,
 -- dictionary) and runs exactly once, from whichever thread the consumer
--- releases on.
+-- releases on. It must not throw: a thrown exception is caught and
+-- discarded — the C caller of the release callback cannot receive it.
 exportArrowSchema :: Ptr ArrowSchema -> ArrowSchema -> IO () -> IO ()
-exportArrowSchema out template cleanup = do
+exportArrowSchema out template cleanup = mask_ $ do
   sp <- newStablePtr cleanup
   poke out
     template
@@ -160,7 +170,7 @@ exportArrowSchema out template cleanup = do
 -- (typically: 'Foreign.ForeignPtr.touchForeignPtr' captures, or explicit
 -- 'free's of malloc'd buffers plus the buffer-pointer table).
 exportArrowArray :: Ptr ArrowArray -> ArrowArray -> IO () -> IO ()
-exportArrowArray out template cleanup = do
+exportArrowArray out template cleanup = mask_ $ do
   sp <- newStablePtr cleanup
   poke out
     template
@@ -177,16 +187,20 @@ exportArrowArray out template cleanup = do
 data ArrowStreamProducer = ArrowStreamProducer
   { producerGetSchema :: Ptr ArrowSchema -> IO CInt
     -- ^ Fill the out-schema (e.g. via 'exportArrowSchema'); return 0,
-    -- or an errno-style code on failure.
+    -- or an errno-style code on failure. A thrown exception is caught
+    -- and reported to the consumer as @EIO@ (5).
   , producerGetNext :: Ptr ArrowArray -> IO CInt
     -- ^ Fill the out-array with the next chunk, or zero the whole
     -- struct (null release member) to signal end-of-stream; return 0,
-    -- or an errno-style code on failure.
+    -- or an errno-style code on failure. A thrown exception is caught
+    -- and reported to the consumer as @EIO@ (5).
   , producerGetLastError :: IO CString
     -- ^ Description of the last error, or 'nullPtr'. The string must
-    -- stay valid until the next stream call.
+    -- stay valid until the next stream call. A thrown exception is
+    -- caught and reported as 'nullPtr'.
   , producerCleanup :: IO ()
-    -- ^ Runs exactly once when the consumer releases the stream.
+    -- ^ Runs exactly once when the consumer releases the stream. Must
+    -- not throw: a thrown exception is caught and discarded.
   }
 
 foreign import ccall "wrapper"
@@ -202,21 +216,31 @@ foreign import ccall "wrapper"
 streamReleaseTrampoline :: FunPtr (Ptr ArrowArrayStream -> IO ())
 streamReleaseTrampoline = unsafePerformIO . wrapStreamRelease $ \p -> do
   s <- peek p
-  runCleanup (streamPrivateData s)
   poke p s { streamRelease = nullFunPtr, streamPrivateData = nullPtr }
+  runCleanup (streamPrivateData s)
 
 foreign import ccall "wrapper"
   wrapStreamRelease :: (Ptr ArrowArrayStream -> IO ()) -> IO (FunPtr (Ptr ArrowArrayStream -> IO ()))
+
+-- These callbacks execute inside a call from foreign code, where a
+-- Haskell exception must not escape (undefined behaviour in the C
+-- caller) — it is caught and mapped to the value the protocol can
+-- carry: an errno-style code, or a null error string.
+guardErrno :: IO CInt -> IO CInt
+guardErrno act = either (\(_ :: SomeException) -> 5 {- EIO -}) id <$> try act
+
+guardLastError :: IO CString -> IO CString
+guardLastError act = either (\(_ :: SomeException) -> nullPtr) id <$> try act
 
 -- | Fill @out@ as an exported stream backed by the producer's Haskell
 -- callbacks. The release callback (the shared trampoline again) frees
 -- the three callback 'FunPtr's — none of them is the one executing —
 -- and then runs 'producerCleanup'.
 exportArrowArrayStream :: Ptr ArrowArrayStream -> ArrowStreamProducer -> IO ()
-exportArrowArrayStream out producer = do
-  gsF <- wrapStreamGetSchema (\_self o -> producerGetSchema producer o)
-  gnF <- wrapStreamGetNext (\_self o -> producerGetNext producer o)
-  geF <- wrapStreamGetLastError (\_self -> producerGetLastError producer)
+exportArrowArrayStream out producer = mask_ $ do
+  gsF <- wrapStreamGetSchema (\_self o -> guardErrno (producerGetSchema producer o))
+  gnF <- wrapStreamGetNext (\_self o -> guardErrno (producerGetNext producer o))
+  geF <- wrapStreamGetLastError (\_self -> guardLastError (producerGetLastError producer))
   sp <- newStablePtr $ do
     freeHaskellFunPtr gsF
     freeHaskellFunPtr gnF

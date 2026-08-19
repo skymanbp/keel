@@ -16,13 +16,16 @@ module Keel.Dyn.Platform
   , addSearchDir
   ) where
 
-import Control.Exception (Exception, finally)
+import Control.Concurrent (rtsSupportsBoundThreads, runInBoundThread)
+import Control.Exception (Exception, finally, mask)
 import Control.Monad (void)
 import Data.Bits ((.|.))
 import Data.Word (Word32)
 import Foreign.C.String (CString, CWString, withCString, withCWString)
+import Foreign.C.Types (CInt (..))
 import Foreign.Ptr (FunPtr, Ptr, castFunPtr, nullFunPtr, nullPtr)
-import System.FilePath (isAbsolute)
+import System.Environment (lookupEnv)
+import System.FilePath (isAbsolute, splitSearchPath, (</>))
 
 type HMODULE = Ptr ()
 
@@ -43,17 +46,20 @@ data DynError
 
 instance Exception DynError
 
-foreign import ccall unsafe "LoadLibraryExW"
+-- LoadLibrary runs the target's DllMain and pages the image in from
+-- disk, and FreeLibrary runs DllMain again — both can block for a long
+-- time, so they are imported safe: a slow load stalls only its own
+-- thread, not every Haskell thread on the capability (the unix package
+-- marks dlopen/dlclose safe for the same reason). GetProcAddress,
+-- GetLastError and AddDllDirectory are cheap lookups and stay unsafe.
+foreign import ccall safe "LoadLibraryExW"
   c_LoadLibraryExW :: CWString -> Ptr () -> Word32 -> IO HMODULE
-
-foreign import ccall unsafe "LoadLibraryW"
-  c_LoadLibraryW :: CWString -> IO HMODULE
 
 foreign import ccall unsafe "GetProcAddress"
   c_GetProcAddress :: HMODULE -> CString -> IO (FunPtr ())
 
-foreign import ccall unsafe "FreeLibrary"
-  c_FreeLibrary :: HMODULE -> IO Int
+foreign import ccall safe "FreeLibrary"
+  c_FreeLibrary :: HMODULE -> IO CInt
 
 foreign import ccall unsafe "GetLastError"
   c_GetLastError :: IO Word32
@@ -63,8 +69,8 @@ foreign import ccall unsafe "AddDllDirectory"
 
 -- LOAD_LIBRARY_SEARCH_DEFAULT_DIRS: application dir + System32 + directories
 -- registered through AddDllDirectory. Deliberately excludes CWD (a classic
--- DLL-planting hazard); PATH/CWD are only reached via the explicit legacy
--- fallback below.
+-- DLL-planting hazard); PATH is only reached via the explicit walk below,
+-- which never consults CWD either.
 searchDefaultDirs :: Word32
 searchDefaultDirs = 0x00001000
 
@@ -76,19 +82,47 @@ searchDllLoadDir :: Word32
 searchDllLoadDir = 0x00000100
 
 -- | Load a shared library by bare name or path. Search order is documented
--- in "Keel.Dyn".
+-- in "Keel.Dyn". The current directory is never searched: the primary
+-- lookup uses the safe default-directories set, and the @PATH@ fallback
+-- for bare names walks the @PATH@ entries explicitly instead of handing
+-- the name to the legacy loader search (whose order includes CWD).
 loadLibrary :: FilePath -> IO (Either DynError Library)
-loadLibrary path = withCWString path $ \wpath -> do
+loadLibrary path = inBound $ withCWString path $ \wpath -> do
   let flags
         | isAbsolute path = searchDllLoadDir .|. searchDefaultDirs
         | otherwise = searchDefaultDirs
   hEx <- c_LoadLibraryExW wpath nullPtr flags
-  h <- if hEx /= nullPtr then pure hEx else c_LoadLibraryW wpath
-  if h == nullPtr
-    then do
+  if hEx /= nullPtr
+    then pure (Right (Library hEx path))
+    else do
+      -- read the primary attempt's error before any further calls
       code <- c_GetLastError
-      pure (Left (LibraryNotFound path ("Win32 error " <> show code)))
-    else pure (Right (Library h path))
+      h <- if isAbsolute path then pure nullPtr else tryPath path
+      pure $
+        if h == nullPtr
+          then Left (LibraryNotFound path ("Win32 error " <> show code))
+          else Right (Library h path)
+
+-- Walk PATH ourselves: each candidate is loaded by absolute path (with
+-- own-directory dependency resolution), relative PATH entries are
+-- skipped, and CWD is never consulted.
+tryPath :: FilePath -> IO HMODULE
+tryPath name = do
+  dirs <- maybe [] splitSearchPath <$> lookupEnv "PATH"
+  go (filter isAbsolute dirs)
+  where
+    go [] = pure nullPtr
+    go (d : ds) = do
+      h <- withCWString (d </> name) $ \w ->
+        c_LoadLibraryExW w nullPtr (searchDllLoadDir .|. searchDefaultDirs)
+      if h /= nullPtr then pure h else go ds
+
+-- GetLastError is only meaningful on the OS thread that made the failing
+-- call, and an unbound Haskell thread may migrate between two foreign
+-- calls; a bound thread pins the whole load-and-diagnose sequence to one
+-- OS thread. A non-threaded RTS has a single OS thread already.
+inBound :: IO a -> IO a
+inBound = if rtsSupportsBoundThreads then runInBoundThread else id
 
 -- | On Windows this is identical to 'loadLibrary': PE imports are
 -- resolved per-module from the DLL's import table, so there is no
@@ -96,18 +130,22 @@ loadLibrary path = withCWString path $ \wpath -> do
 loadLibraryGlobal :: FilePath -> IO (Either DynError Library)
 loadLibraryGlobal = loadLibrary
 
--- | Release the OS handle. 'FunPtr's resolved from this 'Library' must not
--- be called afterwards.
+-- | Release the OS handle, best-effort: a failed FreeLibrary is ignored —
+-- there is no recovery, and 'withLibrary' must not let a cleanup failure
+-- replace the action's own exception. 'FunPtr's resolved from this
+-- 'Library' must not be called afterwards.
 closeLibrary :: Library -> IO ()
 closeLibrary = void . c_FreeLibrary . libHandle
 
--- | 'loadLibrary' \/ 'closeLibrary' bracket.
+-- | 'loadLibrary' \/ 'closeLibrary' bracket, async-exception-safe: the
+-- window between a successful load and the cleanup registration is
+-- masked, so a timeout cannot leak the handle.
 withLibrary :: FilePath -> (Library -> IO a) -> IO (Either DynError a)
-withLibrary path act = do
+withLibrary path act = mask $ \restore -> do
   r <- loadLibrary path
   case r of
     Left e -> pure (Left e)
-    Right lib -> (Right <$> act lib) `finally` closeLibrary lib
+    Right lib -> restore (Right <$> act lib) `finally` closeLibrary lib
 
 -- | Resolve an exported symbol to a 'FunPtr', to be invoked through a
 -- @foreign import ccall \"dynamic\"@ wrapper. The result type is the

@@ -17,8 +17,7 @@ module Keel.Abi.DLPack
   , newManagedTensor
   ) where
 
-import Control.Exception (Exception, finally, throwIO)
-import Control.Monad (join)
+import Control.Exception (Exception, SomeException, finally, mask_, onException, throwIO, try)
 import Data.Int (Int64)
 import Data.Word (Word32, Word64)
 import Foreign.Marshal.Alloc (free, mallocBytes)
@@ -69,13 +68,16 @@ foreign import ccall "wrapper"
 
 -- One process-wide deleter, never freed: runs the cleanup carried in
 -- manager_ctx, then frees the struct block itself (the deleter deletes
--- @self@ per spec).
+-- @self@ per spec). The cleanup runs under 'try' with the exception
+-- dropped: the deleter is invoked by foreign code, and a Haskell
+-- exception escaping into a C caller is undefined behaviour.
 {-# NOINLINE deleterTrampoline #-}
 deleterTrampoline :: FunPtr (Ptr DLManagedTensorVersioned -> IO ())
 deleterTrampoline = unsafePerformIO . wrapDeleter $ \p -> do
   m <- peek p
   let sp = castPtrToStablePtr (mtvManagerCtx m) :: StablePtr (IO ())
-  join (deRefStablePtr sp)
+  cleanup <- deRefStablePtr sp
+  _ <- try @SomeException cleanup
   freeStablePtr sp
   free p
 
@@ -85,7 +87,8 @@ deleterTrampoline = unsafePerformIO . wrapDeleter $ \p -> do
 -- offset, version 'dlpackMajorVersion'.'dlpackMinorVersion'. The cleanup
 -- runs exactly once — from the consumer's deleter call, on whatever
 -- thread that happens — and must free\/unpin the data buffer; the
--- struct block frees itself afterwards.
+-- struct block frees itself afterwards. It must not throw: a thrown
+-- exception is caught and discarded (the C caller cannot receive it).
 newManagedTensor
   :: DLDataType
   -> [Int64] -- ^ shape (row-major, compact)
@@ -93,28 +96,29 @@ newManagedTensor
   -> Word64 -- ^ flags ('dlpackFlagReadOnly' \/ 'dlpackFlagIsCopied' \/ 0)
   -> IO () -- ^ cleanup, owns the data buffer
   -> IO (Ptr DLManagedTensorVersioned)
-newManagedTensor dt shape dat flags cleanup = do
+newManagedTensor dt shape dat flags cleanup = mask_ $ do
   let ndim = length shape
       structSz = sizeOf (undefined :: DLManagedTensorVersioned)
   p <- mallocBytes (structSz + ndim * 8)
-  let shapeP = p `plusPtr` structSz
-  mapM_ (uncurry (pokeElemOff shapeP)) (zip [0 ..] shape)
-  sp <- newStablePtr cleanup
-  poke p
-    DLManagedTensorVersioned
-      { mtvVersion = DLPackVersion dlpackMajorVersion dlpackMinorVersion
-      , mtvManagerCtx = castStablePtrToPtr sp
-      , mtvDeleter = deleterTrampoline
-      , mtvFlags = flags
-      , mtvTensor =
-          DLTensor
-            { dltData = dat
-            , dltDevice = DLDevice kDLCPU 0
-            , dltNDim = fromIntegral ndim
-            , dltDType = dt
-            , dltShape = shapeP
-            , dltStrides = nullPtr
-            , dltByteOffset = 0
-            }
-      }
-  pure p
+  flip onException (free p) $ do
+    let shapeP = p `plusPtr` structSz
+    mapM_ (uncurry (pokeElemOff shapeP)) (zip [0 ..] shape)
+    sp <- newStablePtr cleanup
+    poke p
+      DLManagedTensorVersioned
+        { mtvVersion = DLPackVersion dlpackMajorVersion dlpackMinorVersion
+        , mtvManagerCtx = castStablePtrToPtr sp
+        , mtvDeleter = deleterTrampoline
+        , mtvFlags = flags
+        , mtvTensor =
+            DLTensor
+              { dltData = dat
+              , dltDevice = DLDevice kDLCPU 0
+              , dltNDim = fromIntegral ndim
+              , dltDType = dt
+              , dltShape = shapeP
+              , dltStrides = nullPtr
+              , dltByteOffset = 0
+              }
+        }
+    pure p

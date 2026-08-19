@@ -25,9 +25,13 @@ expect ok msg = unless ok (fail msg)
 
 main :: IO ()
 main = do
+  -- ortApiVersion is deliberately the OLDEST version GetApi serves (see
+  -- its haddock), so the gate checks range, not identity: it must be a
+  -- version the vendored header's runtime actually accepts.
   ver <- c_apiVersion
-  expect (fromIntegral ver == ortApiVersion)
-    ("ORT_API_VERSION: C " <> show ver <> " /= hs " <> show ortApiVersion)
+  expect (ortApiVersion >= 1 && ortApiVersion <= fromIntegral ver)
+    ("ortApiVersion " <> show ortApiVersion
+       <> " outside the served range [1, " <> show ver <> "]")
 
   let hsSlots = ortSlotTable
   cSlots <- allocaArray (length hsSlots) $ \out -> do
