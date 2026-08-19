@@ -5,9 +5,13 @@
 **Product name: `keel`** (decided 2026-08-17) — packages `keel-dyn` / `keel-abi` /
 `keel-onnx` / `keel-linalg` + umbrella `keel`; repo codename HSDS retired when the repo folder was renamed to keel on 2026-08-18.
 
-**Status (2026-08-19):** all five packages shipped at 0.1.0.0 — GitHub Release
-live (tag `v0.1.0.0`, five sdists); Hackage upload pending uploader-group
-approval.
+**Status (2026-08-19):** all five packages are LIVE on Hackage at 0.1.0.0
+(published 2026-08-19 after a three-reviewer publish gate: 64-bit layout
+guard, FFI exception barriers, copied-out ONNX outputs, OrtApi pin
+lowered to 1, third-party license notice, per-package READMEs); the
+GitHub Release `v0.1.0.0` mirrors the published sdists. Stackage
+submission and the Discourse announce are deliberately deferred (owner
+decision 2026-08-19) — neither is pending work.
 
 Research completed and all load-bearing facts verified against primary sources on
 2026-08-17 (13-agent research/design/adversarial-critique workflow; three key facts
@@ -250,8 +254,10 @@ Column representation cannot provide one.
 ### Tier A — capability floor (four packages, net-new, no incumbent)
 
 **A1. `keel-dyn` — the keystone (~300 LOC).** Cross-platform runtime shared-library
-loading: `LoadLibraryW`/`GetProcAddress` with `AddDllDirectory` called *before* load
-on Windows (OpenBLAS drags libgcc_s/libgomp; ONNX Runtime drags its providers);
+loading: `LoadLibraryExW`/`GetProcAddress` with `AddDllDirectory` called *before* load
+on Windows (OpenBLAS drags libgcc_s/libgomp; ONNX Runtime drags its providers; the
+current directory is never searched — bare names are retried against absolute `PATH`
+entries explicitly instead of the legacy loader search);
 `System.Posix.DynamicLinker` elsewhere. Documented search-path policy: env-var
 override → per-user data dir → system path. A `Capability` record = resolved `FunPtr`s
 via `foreign import ccall "dynamic"`, version tag, **per-symbol lazy resolution** so a
@@ -271,7 +277,9 @@ three OSes; leak assertions under `+RTS -s`; valgrind on the Linux lane.
 **A3. `keel-onnx` — the headline.** MIT ONNX Runtime *inference* bindings resolved at
 runtime through `OrtGetApiBase()` → struct of function pointers (the C API is designed
 for this). Env/Session/SessionOptions/RunOptions/MemoryInfo under `bracket`;
-`OrtValue` ↔ Storable buffer zero-copy both ways via `CreateTensorWithDataAsOrtValue`;
+inputs borrowed zero-copy into ORT via `CreateTensorWithDataAsOrtValue`, outputs
+copied out with their `OrtValue`s released deterministically (shipped semantics —
+results carry no tie to the runtime's lifetime);
 shape/dtype introspection; graceful `Maybe` when the runtime is absent. Inference
 only — no training, no export. Fills the verified license-shaped hole (sole existing
 binding is AGPL-3.0-only and frozen; ONNX Runtime itself is MIT with official
@@ -364,9 +372,10 @@ conformance in CI on 3 OSes; leak/valgrind gates.
 
 ### P3 (weeks 10–18) — `keel-onnx` 0.1: the headline
 `OrtGetApiBase()` binding via keel-dyn; full session lifecycle under bracket;
-zero-copy OrtValue↔buffer; `keel setup onnx` fetching the checksum-pinned official
-archive. **Deliverable = the end-to-end demo:** train in scikit-learn, export with
-skl2onnx, run in Haskell on Windows, assert prediction agreement to 1e-6.
+zero-copy inputs and copied-out outputs; `keel setup onnx` fetching the
+checksum-pinned official archive. **Deliverable = the end-to-end demo:** train in
+scikit-learn, export with skl2onnx, run in Haskell on Windows, assert prediction
+agreement to 1e-6.
 Precondition (§7, Q10): one design partner identified who actually needs this.
 
 ### P4 — REMOVED (owner decision, 2026-08-18)

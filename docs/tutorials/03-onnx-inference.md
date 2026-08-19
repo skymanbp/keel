@@ -56,8 +56,9 @@ main = do
 ```
 
 Everything is bracket-managed; inputs are borrowed zero-copy into ORT,
-outputs come back as zero-copy views whose finalizers release the
-underlying `OrtValue`s.
+outputs are copied out and their `OrtValue`s released before `runTensors`
+returns — results are plain Haskell data with no tie to the runtime's
+lifetime.
 
 ## What the CI demo proves
 
@@ -66,7 +67,7 @@ LogisticRegression are trained in scikit-learn, exported with skl2onnx,
 executed through keel-onnx, and the predictions are compared against
 Python's own onnxruntime — **agreement is bit-for-bit 0.0** (the gate is
 1e-6), labels match exactly, and a 500-inference leak gate keeps the
-zero-copy machinery honest.
+buffer handling honest.
 
 *Working code:*
 [`packages/keel-onnx/test/Demo.hs`](../../packages/keel-onnx/test/Demo.hs).

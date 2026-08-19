@@ -17,9 +17,9 @@ it on Windows first, under MIT, with **zero build-time native dependencies**.
 
 | Package | Capability |
 |---|---|
-| `keel-dyn` | Cross-platform *runtime* loading of native libraries (LoadLibraryW / dlopen) — the reason nothing below ever needs a C toolchain at `cabal install` time |
+| `keel-dyn` | Cross-platform *runtime* loading of native libraries (LoadLibraryExW / dlopen) — the reason nothing below ever needs a C toolchain at `cabal install` time |
 | `keel-abi` | Arrow C Data + C Stream Interface (both directions — inbound is new to Haskell) and DLPack tensor exchange |
-| `keel-onnx` | ONNX Runtime **inference** bindings under MIT: train anywhere (PyTorch / scikit-learn), run in Haskell, on Windows, with GPU |
+| `keel-onnx` | ONNX Runtime **inference** bindings under MIT: train anywhere (PyTorch / scikit-learn), run in Haskell, on Windows |
 | `keel-linalg` | CBLAS + LAPACKE over OpenBLAS, resolved at runtime — BLAS that actually installs on Windows |
 | `keel` | Umbrella + `keel doctor` (what resolved, what didn't, the one command that fixes it) + `keel setup` (checksum-pinned native runtimes) |
 

@@ -1,8 +1,8 @@
 # Discourse post draft (Haskell Discourse)
 
-> Status: DRAFT — publish only on owner's go-ahead. Suggested timing:
-> right after the Hackage 0.1 batch lands, so readers can cabal-install
-> the packages named here.
+> Status: DRAFT, ON HOLD — owner decision 2026-08-19: do not post.
+> The Hackage 0.1.0.0 batch is live (all five packages published
+> 2026-08-19), so the draft is postable as-is whenever the owner says go.
 > Every claim in this draft is backed by CI runs on the public repo.
 
 **Title:** keel: a capability floor for Haskell data science (not a new dataframe)
@@ -44,7 +44,9 @@ exactly what resolved, what didn't, and the one command that fixes it.
 The only contact with the dataframe stack is an explicit, honest
 frame↔buffer copy (`Keel.Bridge`, over `dataframe-core` on Hackage).
 
-Repo, tutorials, plan and research provenance:
+On Hackage: https://hackage.haskell.org/package/keel (umbrella; the
+four capability packages are keel-dyn / keel-abi / keel-onnx /
+keel-linalg). Repo, tutorials, plan and research provenance:
 https://github.com/skymanbp/keel
 
 **Looking for a design partner:** if you have a real workload that needs
