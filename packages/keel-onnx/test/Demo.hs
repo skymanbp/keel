@@ -7,9 +7,12 @@
 -- are read back through session introspection.
 --
 -- Needs python with sklearn+skl2onnx+onnxruntime, and an ONNX Runtime
--- shared library (found by the keel policy, or via the python wheel's
--- own copy as a fallback). Anything missing => SKIP unless
--- @KEEL_ONNX_REQUIRE@ is set (publish-stage CI sets it).
+-- shared library: the python wheel's own copy when present (the
+-- reference predictions come from that exact runtime, and an older
+-- system-wide copy — e.g. Windows ML's System32 one — may not even
+-- load the freshly exported model), the keel search policy otherwise.
+-- Anything missing => SKIP unless @KEEL_ONNX_REQUIRE@ is set
+-- (publish-stage CI sets it).
 module Main (main) where
 
 import Control.Exception (IOException, try)
@@ -104,16 +107,14 @@ xTest = VS.fromList [0.5, 1.5, 2, 0, 1, 3, 4, 1]
 main :: IO ()
 main = do
   pyOk <- runPy ["-c", "import sklearn, skl2onnx, onnxruntime"]
-  ortFirst <- loadOnnxRuntime
-  ort <- case ortFirst of
-    Right o -> pure (Just o)
-    Left _ -> do
-      wheel <- findWheelOrt
-      case wheel of
-        Nothing -> pure Nothing
-        Just dll -> do
-          setEnv "KEEL_ONNXRUNTIME" dll
-          either (const Nothing) Just <$> loadOnnxRuntime
+  -- wheel first: the reference values are computed by the wheel's
+  -- runtime, so the Haskell side must pin the same library; without a
+  -- wheel the env stays unset and the keel policy applies as usual
+  wheel <- findWheelOrt
+  case wheel of
+    Just dll -> setEnv "KEEL_ONNXRUNTIME" dll
+    Nothing -> pure ()
+  ort <- either (const Nothing) Just <$> loadOnnxRuntime
   required <- lookupEnv "KEEL_ONNX_REQUIRE"
   case (pyOk, ort) of
     (Just _, Just o) -> run o
@@ -171,9 +172,9 @@ run ort = do
       putStrLn ("regression: max |haskell - python| = " <> show (maximum diffs) <> " <= 1e-6")
 
       -- leak gate: 500 inferences must leave the live Haskell heap flat
-      -- (the zero-copy output ForeignPtrs and their release finalizers
-      -- must retire under GC); C-side allocator leaks are the
-      -- publish-stage valgrind lane's job
+      -- (the copied-out output vectors are transient and must retire
+      -- under GC); C-side allocator leaks are the publish-stage
+      -- valgrind lane's job
       statsOn <- getRTSStatsEnabled
       expect statsOn "RTS stats disabled - test suite must be built with -with-rtsopts=-T"
       performMajorGC
